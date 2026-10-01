@@ -4,15 +4,13 @@ WORKDIR /app
 
 COPY .yarn ./.yarn
 COPY yarn.lock package.json .yarnrc.yml tsconfig.json ./
-COPY packages/finance-engine/package.json packages/finance-engine/package.json
+COPY packages/ ./packages/
 
 RUN yarn install --immutable
 
 FROM deps AS builder
 
 WORKDIR /app
-
-COPY packages/finance-engine ./packages/finance-engine
 
 RUN yarn workspace @actualforge/finance-engine build
 RUN yarn workspaces focus @actualforge/finance-engine --production
