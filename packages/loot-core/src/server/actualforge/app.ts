@@ -52,6 +52,22 @@ export type ActualForgeHandlers = {
     caseId: string;
     resolution: Record<string, unknown>;
   }) => Promise<unknown>;
+  'actualforge-transfers-overview': () => Promise<unknown>;
+  'actualforge-transfer-suggestions': (input: {
+    candidates: Array<Record<string, unknown>>;
+  }) => Promise<unknown>;
+  'actualforge-transfer-confirm': (input: { id: string }) => Promise<unknown>;
+  'actualforge-transfer-remove': (input: { id: string }) => Promise<unknown>;
+  'actualforge-transfer-clarification': (input: {
+    caseId: string;
+    resolution: Record<string, unknown>;
+  }) => Promise<unknown>;
+  'actualforge-credit-cards-list': () => Promise<unknown>;
+  'actualforge-credit-card-upsert': (input: Record<string, unknown>) => Promise<unknown>;
+  'actualforge-credit-card-remove': (input: { accountId: string }) => Promise<unknown>;
+  'actualforge-credit-card-analysis': (input: {
+    candidates: Array<Record<string, unknown>>;
+  }) => Promise<unknown>;
 };
 
 export const app = createApp<ActualForgeHandlers>();
@@ -198,4 +214,43 @@ app.method(
       'PATCH',
       resolution,
     ),
+);
+
+
+app.method('actualforge-transfers-overview', () => request('/transfers'));
+
+app.method('actualforge-transfer-suggestions', ({ candidates }) =>
+  request('/transfers/suggestions', 'POST', { candidates }),
+);
+
+app.method('actualforge-transfer-confirm', ({ id }) =>
+  request(`/transfers/matches/${encodeURIComponent(id)}`, 'PATCH', {}),
+);
+
+app.method('actualforge-transfer-remove', ({ id }) =>
+  request(`/transfers/matches/${encodeURIComponent(id)}`, 'DELETE'),
+);
+
+app.method(
+  'actualforge-transfer-clarification',
+  ({ caseId, resolution }) =>
+    request(
+      `/transfers/clarifications/${encodeURIComponent(caseId)}`,
+      'PATCH',
+      resolution,
+    ),
+);
+
+app.method('actualforge-credit-cards-list', () => request('/credit-cards'));
+
+app.method('actualforge-credit-card-upsert', input =>
+  request('/credit-cards', 'POST', input),
+);
+
+app.method('actualforge-credit-card-remove', ({ accountId }) =>
+  request(`/credit-cards/${encodeURIComponent(accountId)}`, 'DELETE'),
+);
+
+app.method('actualforge-credit-card-analysis', ({ candidates }) =>
+  request('/credit-cards/analyze', 'POST', { candidates }),
 );
