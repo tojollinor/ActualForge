@@ -5,28 +5,20 @@ RUN apt-get update && apt-get install -y openssl
 
 WORKDIR /app
 
-# Copy only the files needed for installing dependencies
+# Keep the complete workspace graph available during dependency resolution.
+# ActualForge adds its own workspaces and several upstream packages reference
+# sibling workspaces through the workspace: protocol.
 COPY .yarn ./.yarn
 COPY yarn.lock package.json .yarnrc.yml tsconfig.json lage.config.js ./
-COPY packages/api/package.json packages/api/package.json
-COPY packages/component-library/package.json packages/component-library/package.json
-COPY packages/crdt/package.json packages/crdt/package.json
-COPY packages/desktop-client/package.json packages/desktop-client/package.json
-COPY packages/desktop-electron/package.json packages/desktop-electron/package.json
-COPY packages/eslint-plugin-actual/package.json packages/eslint-plugin-actual/package.json
-COPY packages/loot-core/package.json packages/loot-core/package.json
-COPY packages/sync-server/package.json packages/sync-server/package.json
-COPY packages/plugins-service/package.json packages/plugins-service/package.json
+COPY packages/ ./packages/
 
 COPY ./bin/package-browser ./bin/package-browser
 
-RUN yarn install
+RUN yarn install --immutable
 
 FROM deps AS builder
 
 WORKDIR /app
-
-COPY packages/ ./packages/
 
 # Increase memory limit for the build process to 8GB
 ENV NODE_OPTIONS=--max_old_space_size=8192
