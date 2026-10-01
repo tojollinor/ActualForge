@@ -230,5 +230,55 @@ export function createActualForgeHandlers({
       ),
   );
 
+
+  handlers.get('/transfers', (req, res) =>
+    forward(req, res, '/api/v1/transfers', 'GET'),
+  );
+  handlers.post('/transfers/suggestions', (req, res) =>
+    forward(req, res, '/api/v1/transfers/suggestions', 'POST'),
+  );
+  handlers.patch('/transfers/matches/:matchId', (req, res) =>
+    forward(
+      req,
+      res,
+      `/api/v1/transfers/matches/${encodeURIComponent(req.params.matchId)}`,
+      'PATCH',
+    ),
+  );
+  handlers.delete('/transfers/matches/:matchId', (req, res) =>
+    forward(
+      req,
+      res,
+      `/api/v1/transfers/matches/${encodeURIComponent(req.params.matchId)}`,
+      'DELETE',
+    ),
+  );
+  handlers.patch('/transfers/clarifications/:caseId', (req, res) =>
+    forward(
+      req,
+      res,
+      `/api/v1/transfers/clarifications/${encodeURIComponent(req.params.caseId)}`,
+      'PATCH',
+    ),
+  );
+
+  handlers.get('/credit-cards', (req, res) =>
+    forward(req, res, '/api/v1/credit-cards', 'GET'),
+  );
+  handlers.post('/credit-cards', (req, res) =>
+    forward(req, res, '/api/v1/credit-cards', 'POST'),
+  );
+  handlers.delete('/credit-cards/:accountId', (req, res) =>
+    forward(
+      req,
+      res,
+      `/api/v1/credit-cards/${encodeURIComponent(req.params.accountId)}`,
+      'DELETE',
+    ),
+  );
+  handlers.post('/credit-cards/analyze', (req, res) =>
+    forward(req, res, '/api/v1/credit-cards/analyze', 'POST'),
+  );
+
   return handlers;
 }
