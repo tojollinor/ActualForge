@@ -316,6 +316,18 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@actualforge/finance-engine@workspace:packages/finance-engine":
+  version: 0.0.0-use.local
+  resolution: "@actualforge/finance-engine@workspace:packages/finance-engine"
+  dependencies:
+    "@types/better-sqlite3": "npm:^7.6.13"
+    "@types/node": "npm:^22.20.1"
+    better-sqlite3: "npm:^12.11.1"
+    typescript: "npm:^6.0.3"
+    vitest: "npm:^4.1.10"
+  languageName: unknown
+  linkType: soft
+
 "@adobe/css-tools@npm:^4.4.0":
   version: 4.4.4
   resolution: "@adobe/css-tools@npm:4.4.4"
