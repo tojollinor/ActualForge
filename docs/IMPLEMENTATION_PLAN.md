@@ -6,7 +6,8 @@ The project is implemented in eight large blocks.
 
 - ✅ Block 1 complete
 - ✅ Block 2 complete
-- ⏭️ Next: Block 3, UI integration
+- ✅ Block 3 complete
+- ⏭️ Next: Block 4, Contracts
 
 1. **Repository + Actual analysis + baseline** ✅
    - Analyze current Actual structure.
@@ -19,9 +20,10 @@ The project is implemented in eight large blocks.
    - Define persistence, API, health check, Compose layout, and image strategy.
    - Keep Actual transaction data authoritative and store ActualForge interpretation separately.
 
-3. **UI integration**
+3. **UI integration** ✅
    - Integrate ActualForge navigation and UI shell into the Actual web/PWA experience.
    - Connect the UI to the finance-engine without creating a second end-user UI.
+   - Use a fixed same-origin bridge instead of exposing the finance-engine directly.
 
 4. **Contracts**
    - Add contract/domain management and transaction associations.
