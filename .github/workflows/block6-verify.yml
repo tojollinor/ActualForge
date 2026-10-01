@@ -8,6 +8,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: block6-verification
+  cancel-in-progress: true
+
 jobs:
   verify-transfers:
     runs-on: ubuntu-latest
