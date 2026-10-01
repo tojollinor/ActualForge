@@ -426,3 +426,157 @@ export async function resolvePaymentChainClarification(
     resolution: { ...resolution },
   })) as PaymentChainDetail;
 }
+
+
+export type TransferMatchKind = 'internal_transfer' | 'credit_card_payment';
+
+export interface TransferCandidate extends TransactionCandidate {
+  accountName?: string | null;
+  transferId?: string | null;
+  transferAccountId?: string | null;
+}
+
+export interface TransferMatch {
+  id: string;
+  sourceActualTransactionId: string;
+  targetActualTransactionId: string;
+  sourceAccountId: string | null;
+  targetAccountId: string | null;
+  amountMinor: number | null;
+  sourceDate: string | null;
+  targetDate: string | null;
+  kind: TransferMatchKind;
+  confidence: number | null;
+  status: 'proposed' | 'confirmed';
+  confirmedAt: string | null;
+  source: string | null;
+  metadata: Record<string, unknown> | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TransferClarification {
+  id: string;
+  status: string;
+  subject: string | null;
+  confidence: number | null;
+  payload: Record<string, unknown>;
+  resolution: Record<string, unknown> | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TransferSuggestion {
+  sourceActualTransactionId: string;
+  targetActualTransactionId: string;
+  kind: TransferMatchKind;
+  score: number;
+  reasons: string[];
+  matchId: string | null;
+  status: 'proposed' | 'confirmed' | 'clarification';
+  clarificationCaseId: string | null;
+}
+
+export interface CreditCardProfile {
+  actualAccountId: string;
+  fundingAccountId: string | null;
+  label: string | null;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreditCardAnalysis extends CreditCardProfile {
+  purchaseCount: number;
+  purchaseTotalMinor: number;
+  refundCount: number;
+  refundTotalMinor: number;
+  paymentCount: number;
+  paymentTotalMinor: number;
+  economicExpenseMinor: number;
+  paymentTransactionIds: string[];
+}
+
+export interface TransferOverview {
+  matches: TransferMatch[];
+  clarifications: TransferClarification[];
+  creditCards: CreditCardAnalysis[];
+}
+
+export async function loadTransferOverview(): Promise<TransferOverview> {
+  return (await send('actualforge-transfers-overview')) as TransferOverview;
+}
+
+export async function suggestTransfers(
+  candidates: TransferCandidate[],
+): Promise<{
+  suggestions: TransferSuggestion[];
+  matches: TransferMatch[];
+  clarifications: TransferClarification[];
+}> {
+  return (await send('actualforge-transfer-suggestions', {
+    candidates: candidates.map(candidate => ({ ...candidate })),
+  })) as {
+    suggestions: TransferSuggestion[];
+    matches: TransferMatch[];
+    clarifications: TransferClarification[];
+  };
+}
+
+export async function confirmTransferSuggestion(
+  id: string,
+): Promise<TransferOverview> {
+  const result = (await send('actualforge-transfer-confirm', { id })) as {
+    overview: TransferOverview;
+  };
+  return result.overview;
+}
+
+export async function removeTransfer(
+  id: string,
+): Promise<TransferOverview> {
+  return (await send('actualforge-transfer-remove', { id })) as TransferOverview;
+}
+
+export async function resolveTransferCase(
+  caseId: string,
+  resolution:
+    | { action: 'dismiss' }
+    | { action: 'confirm'; kind?: TransferMatchKind },
+): Promise<TransferOverview> {
+  return (await send('actualforge-transfer-clarification', {
+    caseId,
+    resolution: { ...resolution },
+  })) as TransferOverview;
+}
+
+export async function listCreditCards(): Promise<CreditCardProfile[]> {
+  const result = (await send('actualforge-credit-cards-list')) as {
+    creditCards: CreditCardProfile[];
+  };
+  return result.creditCards;
+}
+
+export async function upsertCreditCard(input: {
+  actualAccountId: string;
+  fundingAccountId?: string | null;
+  label?: string | null;
+}): Promise<CreditCardProfile> {
+  const result = (await send('actualforge-credit-card-upsert', {
+    ...input,
+  })) as { creditCard: CreditCardProfile };
+  return result.creditCard;
+}
+
+export async function removeCreditCard(accountId: string): Promise<void> {
+  await send('actualforge-credit-card-remove', { accountId });
+}
+
+export async function analyzeCreditCards(
+  candidates: TransferCandidate[],
+): Promise<CreditCardAnalysis[]> {
+  const result = (await send('actualforge-credit-card-analysis', {
+    candidates: candidates.map(candidate => ({ ...candidate })),
+  })) as { creditCards: CreditCardAnalysis[] };
+  return result.creditCards;
+}
