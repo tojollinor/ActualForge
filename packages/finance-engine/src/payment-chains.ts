@@ -193,7 +193,15 @@ function listSplits(db: FinanceDatabase, chainId: string) {
       `SELECT id, payment_chain_id, transaction_link_id, actual_transaction_id,
               kind, amount_minor, notes, created_at, updated_at
        FROM transaction_splits WHERE payment_chain_id = ?
-       ORDER BY created_at, id`,
+       ORDER BY
+         CASE kind
+           WHEN 'contract_amount' THEN 0
+           WHEN 'return_fee' THEN 1
+           WHEN 'bank_fee' THEN 2
+           WHEN 'dunning_fee' THEN 3
+           ELSE 4
+         END,
+         created_at, id`,
     )
     .all(chainId) as any[]).map(row => ({
     id: row.id,
