@@ -119,6 +119,64 @@ describe('transfer and credit-card interpretation', () => {
     db.close();
   });
 
+  it('builds settlement cycles and leaves newer card spending open', () => {
+    const db = createTestDb();
+
+    upsertCreditCardProfile(db, {
+      actualAccountId: 'card-cycle',
+      fundingAccountId: 'checking-cycle',
+      label: 'Mastercard',
+    });
+
+    const candidates = [
+      {
+        actualTransactionId: 'cycle-purchase-1',
+        date: '2026-09-10',
+        amountMinor: -7000,
+        accountId: 'card-cycle',
+      },
+      {
+        actualTransactionId: 'cycle-refund-1',
+        date: '2026-09-12',
+        amountMinor: 1000,
+        accountId: 'card-cycle',
+      },
+      {
+        actualTransactionId: 'cycle-checking-payment',
+        transferId: 'cycle-card-payment',
+        date: '2026-09-30',
+        amountMinor: -6000,
+        accountId: 'checking-cycle',
+      },
+      {
+        actualTransactionId: 'cycle-card-payment',
+        transferId: 'cycle-checking-payment',
+        date: '2026-09-30',
+        amountMinor: 6000,
+        accountId: 'card-cycle',
+      },
+      {
+        actualTransactionId: 'cycle-purchase-2',
+        date: '2026-10-02',
+        amountMinor: -2000,
+        accountId: 'card-cycle',
+      },
+    ];
+
+    suggestTransferMatches(db, candidates);
+    const [analysis] = analyzeCreditCards(db, candidates);
+
+    expect(analysis.cycles).toHaveLength(2);
+    expect(analysis.cycles[0].status).toBe('open');
+    expect(analysis.cycles[0].netExpenseMinor).toBe(2000);
+    expect(analysis.cycles[1].status).toBe('settled');
+    expect(analysis.cycles[1].netExpenseMinor).toBe(6000);
+    expect(analysis.cycles[1].paymentAmountMinor).toBe(6000);
+    expect(analysis.cycles[1].differenceMinor).toBe(0);
+
+    db.close();
+  });
+
   it('sends ambiguous same-amount transfers to clarification instead of auto-linking', () => {
     const db = createTestDb();
 
