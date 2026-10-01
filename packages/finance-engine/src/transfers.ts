@@ -99,6 +99,8 @@ function mapTransferMatch(row: TransferMatchRow) {
     confirmedAt: row.confirmed_at,
     source: row.source,
     metadata: parseJson(row.metadata_json),
+    economicEffectMinor: 0,
+    countsAsIncomeExpense: false,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
