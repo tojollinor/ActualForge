@@ -166,5 +166,69 @@ export function createActualForgeHandlers({
     ),
   );
 
+
+  handlers.get('/payment-chains', (req, res) =>
+    forward(req, res, '/api/v1/payment-chains', 'GET'),
+  );
+  handlers.post('/payment-chains', (req, res) =>
+    forward(req, res, '/api/v1/payment-chains', 'POST'),
+  );
+
+  handlers.get('/payment-chains/:chainId', (req, res) =>
+    forward(
+      req,
+      res,
+      `/api/v1/payment-chains/${encodeURIComponent(req.params.chainId)}`,
+      'GET',
+    ),
+  );
+
+  handlers.post('/payment-chains/:chainId/links', (req, res) =>
+    forward(
+      req,
+      res,
+      `/api/v1/payment-chains/${encodeURIComponent(req.params.chainId)}/links`,
+      'POST',
+    ),
+  );
+
+  handlers.delete('/payment-chains/:chainId/links/:linkId', (req, res) =>
+    forward(
+      req,
+      res,
+      `/api/v1/payment-chains/${encodeURIComponent(req.params.chainId)}/links/${encodeURIComponent(req.params.linkId)}`,
+      'DELETE',
+    ),
+  );
+
+  handlers.patch('/payment-chains/:chainId/links/:linkId/splits', (req, res) =>
+    forward(
+      req,
+      res,
+      `/api/v1/payment-chains/${encodeURIComponent(req.params.chainId)}/links/${encodeURIComponent(req.params.linkId)}/splits`,
+      'PATCH',
+    ),
+  );
+
+  handlers.post('/payment-chains/:chainId/suggestions', (req, res) =>
+    forward(
+      req,
+      res,
+      `/api/v1/payment-chains/${encodeURIComponent(req.params.chainId)}/suggestions`,
+      'POST',
+    ),
+  );
+
+  handlers.patch(
+    '/payment-chains/:chainId/clarifications/:caseId',
+    (req, res) =>
+      forward(
+        req,
+        res,
+        `/api/v1/payment-chains/${encodeURIComponent(req.params.chainId)}/clarifications/${encodeURIComponent(req.params.caseId)}`,
+        'PATCH',
+      ),
+  );
+
   return handlers;
 }
