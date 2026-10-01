@@ -7,7 +7,9 @@ The project is implemented in eight large blocks.
 - ✅ Block 1 complete
 - ✅ Block 2 complete
 - ✅ Block 3 complete
-- ⏭️ Next: Block 4, Contracts
+- ✅ Block 4 complete
+- 🧪 Block 5 implementation complete, verification pending
+- ⏭️ After verification: Block 6, Transfers and credit cards
 
 1. **Repository + Actual analysis + baseline** ✅
    - Analyze current Actual structure.
@@ -25,10 +27,10 @@ The project is implemented in eight large blocks.
    - Connect the UI to the finance-engine without creating a second end-user UI.
    - Use a fixed same-origin bridge instead of exposing the finance-engine directly.
 
-4. **Contracts**
+4. **Contracts** ✅
    - Add contract/domain management and transaction associations.
 
-5. **Payment chains, returns, and splits**
+5. **Payment chains, returns, and splits** 🧪
    - Add payment-chain interpretation, failed/reversed payment handling, and reversible split/link logic.
 
 6. **Transfers and credit cards**
