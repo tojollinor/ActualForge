@@ -10,6 +10,7 @@ The engine owns ActualForge-specific metadata and future logic for:
 - payment chains,
 - transaction links and split interpretations,
 - transfer matches,
+- credit-card account interpretation,
 - clarification cases,
 - prediction entries,
 - merchant mappings,
