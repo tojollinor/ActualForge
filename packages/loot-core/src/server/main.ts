@@ -11,6 +11,7 @@ import type { Handlers } from '#types/handlers';
 import { app as accountGroupsApp } from './account-groups/app';
 import { app as accountsApp } from './accounts/app';
 import { app as adminApp } from './admin/app';
+import { app as actualForgeApp } from './actualforge/app';
 import { installAPI } from './api';
 import { aqlQuery } from './aql';
 import { app as authApp } from './auth/app';
@@ -131,6 +132,7 @@ handlers = installAPI(handlers) as Handlers;
 app.handlers = handlers;
 app.combine(
   authApp,
+  actualForgeApp,
   schedulesApp,
   budgetApp,
   dashboardApp,

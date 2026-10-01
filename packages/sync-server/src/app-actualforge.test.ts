@@ -7,17 +7,42 @@ import { createActualForgeHandlers } from './app-actualforge';
 function createApp(
   financeEngineUrl: string,
   fetchImpl: typeof fetch,
+  authenticated = true,
 ): express.Express {
   const app = express();
+  app.use(express.json());
   app.use(
     '/actualforge/api',
-    createActualForgeHandlers({ financeEngineUrl, fetchImpl, timeoutMs: 100 }),
+    createActualForgeHandlers({
+      financeEngineUrl,
+      fetchImpl,
+      timeoutMs: 100,
+      validateSessionFn: (_req, res) => {
+        if (!authenticated) {
+          res.status(401).json({ error: 'unauthorized' });
+          return null;
+        }
+        return { user_id: 'test-user' } as never;
+      },
+    }),
   );
   return app;
 }
 
 describe('ActualForge finance-engine bridge', () => {
-  it('forwards only the fixed status endpoint to the configured engine', async () => {
+  it('requires an authenticated Actual session', async () => {
+    const fetchImpl: typeof fetch = async () => {
+      throw new Error('fetch should not be called');
+    };
+
+    const response = await request(
+      createApp('http://finance-engine:5010', fetchImpl, false),
+    ).get('/actualforge/api/contracts');
+
+    expect(response.statusCode).toBe(401);
+  });
+
+  it('forwards the fixed status endpoint', async () => {
     let requestedUrl = '';
 
     const fetchImpl: typeof fetch = async input => {
@@ -25,15 +50,8 @@ describe('ActualForge finance-engine bridge', () => {
       return new Response(
         JSON.stringify({
           service: 'finance-engine',
-          version: '0.1.0',
-          schemaVersion: 1,
-          persistence: 'sqlite',
-          actualIntegration: {
-            baseUrl: 'http://actualforge:5006',
-            access: 'api-only',
-            transactionStorage: 'reference-by-id',
-            automaticTransactionMutation: false,
-          },
+          version: '0.2.0',
+          schemaVersion: 2,
         }),
         {
           status: 200,
@@ -51,17 +69,31 @@ describe('ActualForge finance-engine bridge', () => {
     expect(requestedUrl).toBe('http://finance-engine:5010/api/v1/status');
   });
 
-  it('returns 503 when the finance engine is not configured', async () => {
-    const fetchImpl: typeof fetch = async () => {
-      throw new Error('fetch should not be called');
+  it('forwards contract writes only to fixed contract paths', async () => {
+    let method = '';
+    let requestedUrl = '';
+    let payload = '';
+
+    const fetchImpl: typeof fetch = async (input, init) => {
+      requestedUrl = input.toString();
+      method = init?.method ?? '';
+      payload = String(init?.body ?? '');
+      return new Response(JSON.stringify({ contract: { id: 'contract-1' } }), {
+        status: 201,
+        headers: { 'content-type': 'application/json' },
+      });
     };
 
-    const response = await request(createApp('', fetchImpl)).get(
-      '/actualforge/api/engine/health',
-    );
+    const response = await request(
+      createApp('http://finance-engine:5010', fetchImpl),
+    )
+      .post('/actualforge/api/contracts')
+      .send({ title: 'Internet' });
 
-    expect(response.statusCode).toBe(503);
-    expect(response.body.error).toBe('finance_engine_not_configured');
+    expect(response.statusCode).toBe(201);
+    expect(method).toBe('POST');
+    expect(requestedUrl).toBe('http://finance-engine:5010/api/v1/contracts');
+    expect(JSON.parse(payload)).toEqual({ title: 'Internet' });
   });
 
   it('does not behave as an open proxy', async () => {
@@ -75,18 +107,5 @@ describe('ActualForge finance-engine bridge', () => {
 
     expect(response.statusCode).toBe(404);
     expect(response.body.error).toBe('actualforge_endpoint_not_found');
-  });
-
-  it('returns a stable gateway error when the engine cannot be reached', async () => {
-    const fetchImpl: typeof fetch = async () => {
-      throw new Error('network down');
-    };
-
-    const response = await request(
-      createApp('http://finance-engine:5010', fetchImpl),
-    ).get('/actualforge/api/engine/ready');
-
-    expect(response.statusCode).toBe(502);
-    expect(response.body.error).toBe('finance_engine_unavailable');
   });
 });

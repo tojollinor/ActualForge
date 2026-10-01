@@ -8,6 +8,7 @@ import { theme } from '@actual-app/components/theme';
 import { View } from '@actual-app/components/view';
 
 import { Page } from '#components/Page';
+import { useNavigate } from '#hooks/useNavigate';
 
 import {
   loadActualForgeOverview,
@@ -52,6 +53,7 @@ function StatusCard({
 
 export function ActualForgePage() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const [overview, setOverview] = useState<OverviewState>({
     status: 'loading',
   });
@@ -77,7 +79,16 @@ export function ActualForgePage() {
   return (
     <Page header="ActualForge">
       <View style={{ maxWidth: 980, paddingBottom: 30, gap: 16 }}>
-        <View style={{ gap: 6 }}>
+        <View
+          style={{
+            flexDirection: 'row',
+            flexWrap: 'wrap',
+            justifyContent: 'space-between',
+            alignItems: 'flex-start',
+            gap: 10,
+          }}
+        >
+          <View style={{ gap: 6 }}>
           <Text style={{ fontSize: 17, fontWeight: 600 }}>
             {t('Finance interpretation layer')}
           </Text>
@@ -86,6 +97,13 @@ export function ActualForgePage() {
               'Actual keeps the original transactions. ActualForge adds reversible interpretation, matching and forecasting on top.',
             )}
           </Text>
+          </View>
+          <Button
+            variant="primary"
+            onPress={() => void navigate('/actualforge/contracts')}
+          >
+            Verträge öffnen
+          </Button>
         </View>
 
         {overview.status === 'loading' && (

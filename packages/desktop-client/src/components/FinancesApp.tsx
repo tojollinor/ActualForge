@@ -23,6 +23,7 @@ import { useDispatch, useSelector } from '#redux';
 import { UserAccessPage } from './admin/UserAccess/UserAccessPage';
 import { UserDirectoryPage } from './admin/UserDirectory/UserDirectoryPage';
 import { ActualForgePage } from './actualforge/ActualForgePage';
+import { ContractsPage } from './actualforge/ContractsPage';
 import { BankSyncStatus } from './BankSyncStatus';
 import { CommandBar } from './CommandBar';
 import { ContextMenu } from './ContextMenu';
@@ -256,6 +257,10 @@ export function FinancesApp() {
 
                     <Route path="/reports/*" element={<Reports />} />
                     <Route path="/actualforge" element={<ActualForgePage />} />
+                    <Route
+                      path="/actualforge/contracts"
+                      element={<ContractsPage />}
+                    />
 
                     <Route
                       path="/budget"
@@ -464,6 +469,10 @@ export function FinancesApp() {
                 <Routes>
                   <Route path="/budget" element={<MobileNavTabs />} />
                   <Route path="/actualforge" element={<MobileNavTabs />} />
+                  <Route
+                    path="/actualforge/contracts"
+                    element={<MobileNavTabs />}
+                  />
                   <Route path="/accounts" element={<MobileNavTabs />} />
                   <Route path="/settings" element={<MobileNavTabs />} />
                   <Route path="/reports" element={<MobileNavTabs />} />

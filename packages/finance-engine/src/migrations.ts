@@ -136,6 +136,44 @@ const migrations: Migration[] = [
         ON transfer_matches(source_actual_transaction_id, target_actual_transaction_id);
     `,
   },
+  {
+    version: 2,
+    name: 'contract-management',
+    sql: `
+      ALTER TABLE contracts ADD COLUMN provider TEXT;
+      ALTER TABLE contracts ADD COLUMN account_id TEXT;
+      ALTER TABLE contracts ADD COLUMN payee_id TEXT;
+      ALTER TABLE contracts ADD COLUMN amount_mode TEXT NOT NULL DEFAULT 'fixed';
+      ALTER TABLE contracts ADD COLUMN next_payment_date TEXT;
+      ALTER TABLE contracts ADD COLUMN minimum_term_months INTEGER;
+      ALTER TABLE contracts ADD COLUMN cancellation_notice_days INTEGER;
+      ALTER TABLE contracts ADD COLUMN cancellation_date TEXT;
+
+      CREATE TABLE IF NOT EXISTS contract_price_history (
+        id TEXT PRIMARY KEY,
+        contract_id TEXT NOT NULL,
+        actual_transaction_id TEXT,
+        effective_date TEXT NOT NULL,
+        amount_minor INTEGER NOT NULL,
+        currency TEXT,
+        source TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY (contract_id) REFERENCES contracts(id) ON DELETE CASCADE
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_contracts_status
+        ON contracts(status);
+      CREATE INDEX IF NOT EXISTS idx_contracts_account
+        ON contracts(account_id);
+      CREATE INDEX IF NOT EXISTS idx_contracts_payee
+        ON contracts(payee_id);
+      CREATE INDEX IF NOT EXISTS idx_contract_price_history_contract_date
+        ON contract_price_history(contract_id, effective_date);
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_transaction_links_contract_transaction_type
+        ON transaction_links(contract_id, actual_transaction_id, link_type)
+        WHERE contract_id IS NOT NULL;
+    `,
+  },
 ];
 
 export function runMigrations(db: Database.Database): void {

@@ -1,3 +1,5 @@
+import { send } from '@actual-app/core/platform/client/connection';
+
 export interface FinanceEngineHealth {
   status: string;
   service: string;
@@ -38,34 +40,174 @@ export interface ActualForgeOverview {
   capabilities: FinanceEngineCapabilities;
 }
 
-async function requestJson<T>(path: string): Promise<T> {
-  const response = await fetch(path, {
-    method: 'GET',
-    headers: { accept: 'application/json' },
-  });
+export type ContractStatus = 'active' | 'paused' | 'cancelled' | 'archived';
+export type ContractAmountMode = 'fixed' | 'variable';
 
-  const payload: unknown = await response.json().catch(() => null);
+export interface Contract {
+  id: string;
+  title: string;
+  provider: string | null;
+  kind: string | null;
+  status: ContractStatus;
+  accountId: string | null;
+  payeeId: string | null;
+  amountMinor: number | null;
+  amountMode: ContractAmountMode;
+  currency: string | null;
+  recurrence: string | null;
+  nextPaymentDate: string | null;
+  startDate: string | null;
+  endDate: string | null;
+  minimumTermMonths: number | null;
+  cancellationNoticeDays: number | null;
+  cancellationDate: string | null;
+  source: string | null;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+  linkedTransactionCount: number;
+  proposedTransactionCount: number;
+}
 
-  if (!response.ok) {
-    const error =
-      payload && typeof payload === 'object' && 'error' in payload
-        ? String(payload.error)
-        : `request_failed_${response.status}`;
-    throw new Error(error);
-  }
+export interface ContractPayload {
+  title: string;
+  provider?: string | null;
+  kind?: string | null;
+  status?: ContractStatus;
+  accountId?: string | null;
+  payeeId?: string | null;
+  amountMinor?: number | null;
+  amountMode?: ContractAmountMode;
+  currency?: string | null;
+  recurrence?: string | null;
+  nextPaymentDate?: string | null;
+  startDate?: string | null;
+  endDate?: string | null;
+  minimumTermMonths?: number | null;
+  cancellationNoticeDays?: number | null;
+  cancellationDate?: string | null;
+  notes?: string | null;
+}
 
-  return payload as T;
+export interface ContractLink {
+  id: string;
+  actualTransactionId: string;
+  linkType: string;
+  amountMinor: number | null;
+  confidence: number | null;
+  status: string;
+  metadata: Record<string, unknown> | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ContractPriceHistory {
+  id: string;
+  actualTransactionId: string | null;
+  effectiveDate: string;
+  amountMinor: number;
+  currency: string | null;
+  source: string;
+  createdAt: string;
+}
+
+export interface ContractDetail {
+  contract: Contract;
+  links: ContractLink[];
+  priceHistory: ContractPriceHistory[];
+}
+
+export interface TransactionCandidate {
+  actualTransactionId: string;
+  date: string;
+  amountMinor: number;
+  accountId: string;
+  payeeId?: string | null;
+  payeeName?: string | null;
+  notes?: string | null;
+}
+
+export interface ContractSuggestion {
+  actualTransactionId: string;
+  score: number;
+  reasons: string[];
+  amountChange: boolean;
+  proposedLinkId: string | null;
 }
 
 export async function loadActualForgeOverview(): Promise<ActualForgeOverview> {
-  const [health, ready, status, capabilities] = await Promise.all([
-    requestJson<FinanceEngineHealth>('/actualforge/api/engine/health'),
-    requestJson<FinanceEngineReady>('/actualforge/api/engine/ready'),
-    requestJson<FinanceEngineStatus>('/actualforge/api/engine/status'),
-    requestJson<FinanceEngineCapabilities>(
-      '/actualforge/api/engine/capabilities',
-    ),
-  ]);
+  return (await send('actualforge-overview')) as ActualForgeOverview;
+}
 
-  return { health, ready, status, capabilities };
+export async function listContracts(): Promise<Contract[]> {
+  const result = (await send('actualforge-contracts-list')) as {
+    contracts: Contract[];
+  };
+  return result.contracts;
+}
+
+export async function createContract(
+  payload: ContractPayload,
+): Promise<Contract> {
+  const result = (await send(
+    'actualforge-contract-create',
+    payload as Record<string, unknown>,
+  )) as { contract: Contract };
+  return result.contract;
+}
+
+export async function getContract(id: string): Promise<ContractDetail> {
+  return (await send('actualforge-contract-get', { id })) as ContractDetail;
+}
+
+export async function updateContract(
+  id: string,
+  changes: Partial<ContractPayload>,
+): Promise<Contract> {
+  const result = (await send('actualforge-contract-update', {
+    id,
+    changes: changes as Record<string, unknown>,
+  })) as { contract: Contract };
+  return result.contract;
+}
+
+export async function linkContractTransaction(
+  id: string,
+  link: {
+    actualTransactionId: string;
+    amountMinor?: number | null;
+    date?: string | null;
+    linkType?: string;
+    confidence?: number | null;
+    metadata?: Record<string, unknown> | null;
+  },
+): Promise<ContractDetail> {
+  const result = (await send('actualforge-contract-link', {
+    id,
+    link: link as Record<string, unknown>,
+  })) as { detail: ContractDetail };
+  return result.detail;
+}
+
+export async function unlinkContractTransaction(
+  id: string,
+  linkId: string,
+): Promise<void> {
+  await send('actualforge-contract-unlink', { id, linkId });
+}
+
+export async function suggestContractTransactions(
+  id: string,
+  candidates: TransactionCandidate[],
+): Promise<{
+  suggestions: ContractSuggestion[];
+  detail: ContractDetail;
+}> {
+  return (await send('actualforge-contract-suggestions', {
+    id,
+    candidates: candidates as Array<Record<string, unknown>>,
+  })) as {
+    suggestions: ContractSuggestion[];
+    detail: ContractDetail;
+  };
 }
