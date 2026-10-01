@@ -224,6 +224,40 @@ const migrations: Migration[] = [
     `,
   },
 
+  {
+    version: 4,
+    name: 'transfers-and-credit-cards',
+    sql: `
+      ALTER TABLE transfer_matches ADD COLUMN source_account_id TEXT;
+      ALTER TABLE transfer_matches ADD COLUMN target_account_id TEXT;
+      ALTER TABLE transfer_matches ADD COLUMN amount_minor INTEGER;
+      ALTER TABLE transfer_matches ADD COLUMN source_date TEXT;
+      ALTER TABLE transfer_matches ADD COLUMN target_date TEXT;
+      ALTER TABLE transfer_matches ADD COLUMN match_kind TEXT NOT NULL DEFAULT 'internal_transfer';
+      ALTER TABLE transfer_matches ADD COLUMN confirmed_at TEXT;
+      ALTER TABLE transfer_matches ADD COLUMN source TEXT;
+
+      CREATE TABLE IF NOT EXISTS credit_card_accounts (
+        actual_account_id TEXT PRIMARY KEY,
+        funding_account_id TEXT,
+        label TEXT,
+        status TEXT NOT NULL DEFAULT 'active',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        CHECK (funding_account_id IS NULL OR funding_account_id <> actual_account_id)
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_transfer_matches_source_account
+        ON transfer_matches(source_account_id);
+      CREATE INDEX IF NOT EXISTS idx_transfer_matches_target_account
+        ON transfer_matches(target_account_id);
+      CREATE INDEX IF NOT EXISTS idx_transfer_matches_status_kind
+        ON transfer_matches(status, match_kind);
+      CREATE INDEX IF NOT EXISTS idx_credit_card_accounts_funding
+        ON credit_card_accounts(funding_account_id);
+    `,
+  },
+
 ];
 
 export function runMigrations(db: Database.Database): void {
