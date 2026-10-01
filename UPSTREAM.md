@@ -23,6 +23,14 @@ Expected remotes:
 - `origin` -> `tojollinor/ActualForge`
 - `upstream` -> `actualbudget/actual`
 
+## Branch baseline
+
+- Development/default branch: `main`
+- Frozen comparison branch: `baseline/actual-v26.9.0`
+- The baseline branch points to the verified initial import and must not be advanced.
+
+Future upstream integrations are performed on temporary working branches and merged deliberately into `main` only after review and tests.
+
 ## Update policy
 
 There is intentionally **no automatic upstream synchronization**.
