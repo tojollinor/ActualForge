@@ -24,6 +24,7 @@ import { UserAccessPage } from './admin/UserAccess/UserAccessPage';
 import { UserDirectoryPage } from './admin/UserDirectory/UserDirectoryPage';
 import { ActualForgePage } from './actualforge/ActualForgePage';
 import { ContractsPage } from './actualforge/ContractsPage';
+import { PaymentChainsPage } from './actualforge/PaymentChainsPage';
 import { BankSyncStatus } from './BankSyncStatus';
 import { CommandBar } from './CommandBar';
 import { ContextMenu } from './ContextMenu';
@@ -260,6 +261,10 @@ export function FinancesApp() {
                     <Route
                       path="/actualforge/contracts"
                       element={<ContractsPage />}
+                    />
+                    <Route
+                      path="/actualforge/payment-chains"
+                      element={<PaymentChainsPage />}
                     />
 
                     <Route
