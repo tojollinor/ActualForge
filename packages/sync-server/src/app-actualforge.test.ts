@@ -135,6 +135,53 @@ describe('ActualForge finance-engine bridge', () => {
     });
   });
 
+  it('forwards transfer recognition only to the fixed transfer endpoint', async () => {
+    let method = '';
+    let requestedUrl = '';
+    let payload = '';
+
+    const fetchImpl: typeof fetch = async (input, init) => {
+      requestedUrl = input.toString();
+      method = init?.method ?? '';
+      payload = String(init?.body ?? '');
+      return new Response(JSON.stringify({ matches: [] }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    };
+
+    const response = await request(
+      createApp('http://finance-engine:5010', fetchImpl),
+    )
+      .post('/actualforge/api/transfers/suggestions')
+      .send({
+        candidates: [
+          {
+            actualTransactionId: 'tx-1',
+            date: '2026-10-01',
+            amountMinor: -50000,
+            accountId: 'checking',
+          },
+        ],
+      });
+
+    expect(response.statusCode).toBe(200);
+    expect(method).toBe('POST');
+    expect(requestedUrl).toBe(
+      'http://finance-engine:5010/api/v1/transfers/suggestions',
+    );
+    expect(JSON.parse(payload)).toEqual({
+      candidates: [
+        {
+          actualTransactionId: 'tx-1',
+          date: '2026-10-01',
+          amountMinor: -50000,
+          accountId: 'checking',
+        },
+      ],
+    });
+  });
+
   it('does not behave as an open proxy', async () => {
     const fetchImpl: typeof fetch = async () => {
       throw new Error('fetch should not be called');
