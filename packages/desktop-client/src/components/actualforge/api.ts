@@ -211,3 +211,218 @@ export async function suggestContractTransactions(
     detail: ContractDetail;
   };
 }
+
+
+export type PaymentChainStatus =
+  | 'open'
+  | 'reversed'
+  | 'settled'
+  | 'failed'
+  | 'needs_clarification';
+
+export type PaymentRole =
+  | 'payment_attempt'
+  | 'reversal'
+  | 'settlement'
+  | 'fee'
+  | 'failed';
+
+export type SplitKind =
+  | 'contract_amount'
+  | 'return_fee'
+  | 'bank_fee'
+  | 'dunning_fee'
+  | 'other_fee';
+
+export interface PaymentChain {
+  id: string;
+  contractId: string | null;
+  contractTitle: string | null;
+  title: string | null;
+  accountId: string | null;
+  status: PaymentChainStatus;
+  expectedAmountMinor: number | null;
+  currency: string | null;
+  dueDate: string | null;
+  settledAt: string | null;
+  failureReason: string | null;
+  metadata: Record<string, unknown> | null;
+  createdAt: string;
+  updatedAt: string;
+  linkCount: number;
+  openClarificationCount: number;
+}
+
+export interface PaymentChainPayload {
+  contractId?: string | null;
+  title?: string | null;
+  accountId?: string | null;
+  expectedAmountMinor?: number | null;
+  currency?: string | null;
+  dueDate?: string | null;
+}
+
+export interface TransactionSplit {
+  id: string;
+  paymentChainId: string;
+  transactionLinkId: string;
+  actualTransactionId: string;
+  kind: SplitKind;
+  amountMinor: number;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TransactionSplitPayload {
+  kind: SplitKind;
+  amountMinor: number;
+  notes?: string | null;
+}
+
+export interface PaymentChainLink {
+  id: string;
+  actualTransactionId: string;
+  role: PaymentRole;
+  amountMinor: number | null;
+  signedAmountMinor: number | null;
+  occurredOn: string | null;
+  confidence: number | null;
+  status: string;
+  metadata: Record<string, unknown> | null;
+  createdAt: string;
+  updatedAt: string;
+  splits: TransactionSplit[];
+}
+
+export interface PaymentChainClarification {
+  id: string;
+  paymentChainId: string;
+  actualTransactionId: string | null;
+  confidence: number | null;
+  status: string;
+  subject: string | null;
+  payload: Record<string, unknown>;
+  resolution: Record<string, unknown> | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PaymentChainDetail {
+  chain: PaymentChain;
+  links: PaymentChainLink[];
+  clarifications: PaymentChainClarification[];
+  summary: {
+    attemptCount: number;
+    reversalCount: number;
+    finalPaymentMinor: number;
+    feeTotalMinor: number;
+    economicTotalMinor: number;
+    finalSettlementTransactionId: string | null;
+  };
+}
+
+export interface PaymentChainSuggestion {
+  actualTransactionId: string;
+  role: PaymentRole;
+  score: number;
+  reasons: string[];
+  clarificationCaseId: string | null;
+}
+
+export async function listPaymentChains(): Promise<PaymentChain[]> {
+  const result = (await send('actualforge-payment-chains-list')) as {
+    paymentChains: PaymentChain[];
+  };
+  return result.paymentChains;
+}
+
+export async function createPaymentChain(
+  payload: PaymentChainPayload,
+): Promise<PaymentChain> {
+  const result = (await send(
+    'actualforge-payment-chain-create',
+    { ...payload },
+  )) as { paymentChain: PaymentChain };
+  return result.paymentChain;
+}
+
+export async function getPaymentChain(id: string): Promise<PaymentChainDetail> {
+  return (await send('actualforge-payment-chain-get', { id })) as PaymentChainDetail;
+}
+
+export async function linkPaymentChainTransaction(
+  id: string,
+  link: {
+    actualTransactionId: string;
+    role: PaymentRole;
+    amountMinor: number;
+    date: string;
+    confidence?: number | null;
+    metadata?: Record<string, unknown> | null;
+    splits?: TransactionSplitPayload[];
+  },
+): Promise<PaymentChainDetail> {
+  return (await send('actualforge-payment-chain-link', {
+    id,
+    link: { ...link },
+  })) as PaymentChainDetail;
+}
+
+export async function unlinkPaymentChainTransaction(
+  id: string,
+  linkId: string,
+): Promise<PaymentChainDetail> {
+  return (await send('actualforge-payment-chain-unlink', {
+    id,
+    linkId,
+  })) as PaymentChainDetail;
+}
+
+export async function replacePaymentChainSplits(
+  id: string,
+  linkId: string,
+  splits: TransactionSplitPayload[],
+): Promise<PaymentChainDetail> {
+  return (await send('actualforge-payment-chain-splits', {
+    id,
+    linkId,
+    splits: splits.map(split => ({ ...split })),
+  })) as PaymentChainDetail;
+}
+
+export async function suggestPaymentChainTransactions(
+  id: string,
+  candidates: TransactionCandidate[],
+): Promise<{
+  suggestions: PaymentChainSuggestion[];
+  detail: PaymentChainDetail;
+}> {
+  return (await send('actualforge-payment-chain-suggestions', {
+    id,
+    candidates: candidates.map(candidate => ({ ...candidate })),
+  })) as {
+    suggestions: PaymentChainSuggestion[];
+    detail: PaymentChainDetail;
+  };
+}
+
+export async function resolvePaymentChainClarification(
+  id: string,
+  caseId: string,
+  resolution:
+    | { action: 'dismiss' }
+    | {
+        action: 'confirm';
+        role: PaymentRole;
+        amountMinor: number;
+        date: string;
+        splits?: TransactionSplitPayload[];
+      },
+): Promise<PaymentChainDetail> {
+  return (await send('actualforge-payment-chain-clarification', {
+    id,
+    caseId,
+    resolution: { ...resolution },
+  })) as PaymentChainDetail;
+}
