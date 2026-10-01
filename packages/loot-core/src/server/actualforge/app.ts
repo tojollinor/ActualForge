@@ -9,15 +9,15 @@ type RequestMethod = 'GET' | 'POST' | 'PATCH' | 'DELETE';
 export type ActualForgeHandlers = {
   'actualforge-overview': () => Promise<unknown>;
   'actualforge-contracts-list': () => Promise<unknown>;
-  'actualforge-contract-create': (input: Record<string, unknown>) => Promise<unknown>;
+  'actualforge-contract-create': (input: object) => Promise<unknown>;
   'actualforge-contract-get': (input: { id: string }) => Promise<unknown>;
   'actualforge-contract-update': (input: {
     id: string;
-    changes: Record<string, unknown>;
+    changes: object;
   }) => Promise<unknown>;
   'actualforge-contract-link': (input: {
     id: string;
-    link: Record<string, unknown>;
+    link: object;
   }) => Promise<unknown>;
   'actualforge-contract-unlink': (input: {
     id: string;
@@ -25,7 +25,7 @@ export type ActualForgeHandlers = {
   }) => Promise<unknown>;
   'actualforge-contract-suggestions': (input: {
     id: string;
-    candidates: Array<Record<string, unknown>>;
+    candidates: object[];
   }) => Promise<unknown>;
 };
 
