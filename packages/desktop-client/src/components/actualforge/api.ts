@@ -451,6 +451,8 @@ export interface TransferMatch {
   confirmedAt: string | null;
   source: string | null;
   metadata: Record<string, unknown> | null;
+  economicEffectMinor: 0;
+  countsAsIncomeExpense: false;
   createdAt: string;
   updatedAt: string;
 }
