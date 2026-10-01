@@ -65,7 +65,10 @@
     "typecheck": "tsgo -p tsconfig.root.json --noEmit && lage typecheck",
     "check:tsconfig-references": "workspaces-to-typescript-project-references --check",
     "sync:tsconfig-references": "workspaces-to-typescript-project-references",
-    "prepare": "husky"
+    "prepare": "husky",
+    "start:finance-engine": "yarn workspace @actualforge/finance-engine start",
+    "build:finance-engine": "yarn workspace @actualforge/finance-engine build",
+    "test:finance-engine": "yarn workspace @actualforge/finance-engine test"
   },
   "devDependencies": {
     "@monorepo-utils/workspaces-to-typescript-project-references": "^2.11.0",

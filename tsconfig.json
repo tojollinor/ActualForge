@@ -1,40 +1,65 @@
 {
   "references": [
-    { "path": "./packages/crdt" },
-    { "path": "./packages/component-library" },
-    { "path": "./packages/plugins-service" },
-    { "path": "./packages/loot-core" },
-    { "path": "./packages/api" },
-    { "path": "./packages/desktop-client" },
-    { "path": "./packages/sync-server" },
-    { "path": "./packages/desktop-electron" },
-    { "path": "./packages/cli" }
+    {
+      "path": "./packages/crdt"
+    },
+    {
+      "path": "./packages/component-library"
+    },
+    {
+      "path": "./packages/plugins-service"
+    },
+    {
+      "path": "./packages/loot-core"
+    },
+    {
+      "path": "./packages/api"
+    },
+    {
+      "path": "./packages/desktop-client"
+    },
+    {
+      "path": "./packages/sync-server"
+    },
+    {
+      "path": "./packages/desktop-electron"
+    },
+    {
+      "path": "./packages/cli"
+    },
+    {
+      "path": "./packages/finance-engine"
+    }
   ],
   "compilerOptions": {
     "target": "ES2022",
-    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "lib": [
+      "ES2022",
+      "DOM",
+      "DOM.Iterable"
+    ],
     "allowSyntheticDefaultImports": true,
     "esModuleInterop": true,
     "experimentalDecorators": true,
     "resolveJsonModule": true,
-    // TODO: enable once every file is ts
-    // "strict": true,
     "strictFunctionTypes": true,
     "noFallthroughCasesInSwitch": true,
     "skipLibCheck": true,
     "jsx": "preserve",
-    "types": ["vite/client", "vitest/globals"],
-    // Check JS files too
+    "types": [
+      "vite/client",
+      "vitest/globals"
+    ],
     "allowJs": true,
     "checkJs": false,
-    // Used for temp builds
     "outDir": "build",
     "moduleResolution": "bundler",
     "module": "es2022",
-    // Until/if we build using tsc
     "noEmit": true
   },
-  "include": ["bin/*.mts"],
+  "include": [
+    "bin/*.mts"
+  ],
   "exclude": [
     "**/.*/",
     "node_modules",
