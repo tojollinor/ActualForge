@@ -44,7 +44,7 @@ jobs:
         run: yarn workspace @actual-app/sync-server exec vitest --run src/app-actualforge.test.ts
 
       - name: Typecheck loot-core
-        run: yarn workspace @actual-app/loot-core typecheck
+        run: yarn workspace @actual-app/core typecheck
 
       - name: Typecheck web client
         run: yarn workspace @actual-app/web typecheck
