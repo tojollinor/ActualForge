@@ -26,6 +26,7 @@ const capabilityLabels: Record<string, string> = {
   transactionLinks: 'Transaction links',
   transactionSplits: 'Transaction splits',
   transferMatches: 'Transfer matching',
+  creditCards: 'Credit cards',
   clarificationCases: 'Clarification cases',
   predictions: 'Predictions',
   merchantMappings: 'Merchant mappings',
@@ -111,6 +112,12 @@ export function ActualForgePage() {
               onPress={() => void navigate('/actualforge/payment-chains')}
             >
               Zahlungsketten
+            </Button>
+            <Button
+              variant="normal"
+              onPress={() => void navigate('/actualforge/transfers')}
+            >
+              Umbuchungen & Kreditkarten
             </Button>
           </View>
         </View>
