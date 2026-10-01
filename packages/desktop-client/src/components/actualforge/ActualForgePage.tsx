@@ -23,7 +23,8 @@ type OverviewState =
 const capabilityLabels: Record<string, string> = {
   contracts: 'Contracts',
   paymentChains: 'Payment chains',
-  transactionLinks: 'Transaction links & splits',
+  transactionLinks: 'Transaction links',
+  transactionSplits: 'Transaction splits',
   transferMatches: 'Transfer matching',
   clarificationCases: 'Clarification cases',
   predictions: 'Predictions',
@@ -98,12 +99,20 @@ export function ActualForgePage() {
             )}
           </Text>
           </View>
-          <Button
-            variant="primary"
-            onPress={() => void navigate('/actualforge/contracts')}
-          >
-            Verträge öffnen
-          </Button>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+            <Button
+              variant="primary"
+              onPress={() => void navigate('/actualforge/contracts')}
+            >
+              Verträge öffnen
+            </Button>
+            <Button
+              variant="normal"
+              onPress={() => void navigate('/actualforge/payment-chains')}
+            >
+              Zahlungsketten
+            </Button>
+          </View>
         </View>
 
         {overview.status === 'loading' && (
