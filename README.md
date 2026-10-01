@@ -24,7 +24,9 @@ See [UPSTREAM.md](./UPSTREAM.md).
 
 The project keeps a single user-facing web/PWA experience based on Actual's UI.
 
-ActualForge now includes a separate internal `finance-engine` service for its own finance interpretation data and logic. The engine uses its own SQLite persistence, keeps Actual transactions authoritative, and is not exposed as a second end-user interface.
+ActualForge includes a separate internal `finance-engine` service for its own finance interpretation data and logic. The engine uses its own SQLite persistence, keeps Actual transactions authoritative, and is not exposed as a second end-user interface.
+
+The existing Actual web/PWA now contains an **ActualForge** route in desktop and mobile navigation. Browser requests reach the finance engine only through fixed same-origin endpoints on the sync-server.
 
 See:
 - [docs/ACTUALFORGE_ARCHITECTURE.md](./docs/ACTUALFORGE_ARCHITECTURE.md)
