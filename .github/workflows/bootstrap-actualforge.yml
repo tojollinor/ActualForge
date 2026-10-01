@@ -57,6 +57,15 @@ jobs:
 
           cp -a /tmp/actualforge-overlay/. .
 
+      - name: Create local pinned-base commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "chore: import Actual v26.9.0 pinned base"
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
@@ -74,12 +83,5 @@ jobs:
           NODE_OPTIONS: --max_old_space_size=6144
         run: yarn build:server
 
-      - name: Commit pinned Actual base
-        shell: bash
-        run: |
-          set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
-          git commit -m "chore: import Actual v26.9.0 pinned base"
-          git push origin HEAD:main
+      - name: Push verified pinned Actual base
+        run: git push origin HEAD:main
