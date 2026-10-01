@@ -1,0 +1,89 @@
+name: Block 3 verification
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  verify-ui-integration:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out ActualForge
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'yarn'
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Install dependencies
+        run: yarn install --immutable
+
+      - name: Test ActualForge server bridge
+        run: yarn workspace @actual-app/sync-server exec vitest --run src/app-actualforge.test.ts
+
+      - name: Typecheck web client
+        run: yarn workspace @actual-app/web typecheck
+
+      - name: Typecheck sync-server
+        run: yarn workspace @actual-app/sync-server typecheck
+
+      - name: Build web client
+        run: yarn workspace @actual-app/web build
+
+      - name: Build sync-server
+        run: yarn workspace @actual-app/sync-server build
+
+      - name: Validate Compose configuration
+        run: docker compose -f compose.yaml config >/dev/null
+
+      - name: Build and start the ActualForge stack
+        run: docker compose -f compose.yaml up --build -d
+
+      - name: Verify same-origin ActualForge integration
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          cleanup() {
+            docker compose -f compose.yaml down -v >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+
+          for attempt in {1..60}; do
+            if curl --fail --silent http://127.0.0.1:5006/health >/dev/null; then
+              break
+            fi
+            sleep 2
+          done
+
+          curl --fail --silent http://127.0.0.1:5006/health
+          curl --fail --silent http://127.0.0.1:5006/actualforge/api/engine/health
+          curl --fail --silent http://127.0.0.1:5006/actualforge/api/engine/ready
+          curl --fail --silent http://127.0.0.1:5006/actualforge/api/engine/status
+          curl --fail --silent http://127.0.0.1:5006/actualforge/api/engine/capabilities
+          curl --fail --silent http://127.0.0.1:5006/actualforge >/dev/null
+
+      - name: Remove one-time Block 3 verifier
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm .github/workflows/block3-verify.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .github/workflows/block3-verify.yml
+          git commit -m "chore: finalize Block 3 verification"
+          git push origin HEAD:main

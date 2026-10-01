@@ -42,7 +42,7 @@ Endpoints:
 - `GET /api/v1/status` - engine and integration status
 - `GET /api/v1/capabilities` - domain capabilities currently represented by the schema
 
-There are intentionally no write endpoints in Block 2.
+There are intentionally no write endpoints yet. Block 3 exposes these read-only endpoints to the existing ActualForge web UI through a fixed same-origin bridge.
 
 ## Actual integration boundary
 
@@ -54,7 +54,14 @@ ACTUALFORGE_ACTUAL_URL=http://actualforge:5006
 
 Direct SQLite access to Actual is deliberately avoided. Later blocks will integrate through explicit application/API seams.
 
-The browser/PWA also does not connect to port 5010 directly. Block 3 will add the same-origin ActualForge UI integration/proxy path.
+The browser/PWA does not connect to port 5010 directly. The sync-server exposes only four fixed same-origin bridge endpoints:
+
+- `/actualforge/api/engine/health`
+- `/actualforge/api/engine/ready`
+- `/actualforge/api/engine/status`
+- `/actualforge/api/engine/capabilities`
+
+This is deliberately not an open proxy.
 
 ## Safety rules
 

@@ -85,7 +85,9 @@ Initial internal endpoints:
 - `GET /api/v1/status`
 - `GET /api/v1/capabilities`
 
-Block 2 intentionally exposes no write endpoints. Block 3 adds the application-side integration path from the ActualForge web experience to the engine.
+The finance engine still exposes no write endpoints.
+
+Block 3 adds a fixed same-origin bridge in the sync-server and a new `/actualforge` route inside the existing React/PWA shell. Desktop and mobile navigation point to this page. The browser never needs direct network access to the engine container.
 
 ## Compatibility rule
 

@@ -7,6 +7,7 @@ import { animated, config, useSpring } from 'react-spring';
 import { useResponsive } from '@actual-app/components/hooks/useResponsive';
 import {
   SvgAdd,
+  SvgBolt,
   SvgCog,
   SvgCreditCard,
   SvgPiggyBank,
@@ -28,10 +29,7 @@ import { useSyncServerStatus } from '#hooks/useSyncServerStatus';
 const COLUMN_COUNT = 3;
 const PILL_HEIGHT = 15;
 const ROW_HEIGHT = 70;
-const TOTAL_HEIGHT = ROW_HEIGHT * COLUMN_COUNT;
 const OPEN_FULL_Y = 1;
-const OPEN_DEFAULT_Y = TOTAL_HEIGHT - ROW_HEIGHT;
-const HIDDEN_Y = TOTAL_HEIGHT;
 
 export const MOBILE_NAV_HEIGHT = ROW_HEIGHT + PILL_HEIGHT;
 
@@ -52,12 +50,33 @@ export function MobileNavTabs() {
     maxWidth: `${100 / COLUMN_COUNT}%`,
   };
 
-  const [{ y }, api] = useSpring(() => ({ from: { y: OPEN_DEFAULT_Y } }), []);
+  const navTabDefinitions = [
+    { name: t('Budget'), path: '/budget', style: navTabStyle, Icon: SvgWallet },
+    { name: t('Transaction'), path: '/transactions/new', style: navTabStyle, Icon: SvgAdd },
+    { name: t('Accounts'), path: '/accounts', style: navTabStyle, Icon: SvgPiggyBank },
+    { name: t('Reports'), path: '/reports', style: navTabStyle, Icon: SvgReports },
+    { name: t('Schedules'), path: '/schedules', style: navTabStyle, Icon: SvgCalendar3 },
+    { name: t('Payees'), path: '/payees', style: navTabStyle, Icon: SvgStoreFront },
+    { name: t('Rules'), path: '/rules', style: navTabStyle, Icon: SvgTuning },
+    ...(isUsingServer
+      ? [{ name: t('Bank Sync'), path: '/bank-sync', style: navTabStyle, Icon: SvgCreditCard }]
+      : []),
+    { name: 'ActualForge', path: '/actualforge', style: navTabStyle, Icon: SvgBolt },
+    { name: t('Settings'), path: '/settings', style: navTabStyle, Icon: SvgCog },
+  ];
+
+  const rowCount = Math.ceil(navTabDefinitions.length / COLUMN_COUNT);
+  const totalHeight = ROW_HEIGHT * rowCount;
+  const openDefaultY = totalHeight - ROW_HEIGHT;
+  const hiddenY = totalHeight;
+
+  const [{ y }, api] = useSpring(
+    () => ({ from: { y: openDefaultY } }),
+    [openDefaultY],
+  );
 
   const openFull = useCallback(
     ({ canceled }: { canceled?: boolean }) => {
-      // when cancel is true, it means that the user passed the upwards threshold
-      // so we change the spring config to create a nice wobbly effect
       setNavbarState('open');
       void api.start({
         to: { y: OPEN_FULL_Y },
@@ -72,90 +91,32 @@ export function MobileNavTabs() {
     (velocity = 0) => {
       setNavbarState('default');
       void api.start({
-        to: { y: OPEN_DEFAULT_Y },
+        to: { y: openDefaultY },
         immediate: isTestEnv,
         config: { ...config.stiff, velocity },
       });
     },
-    [api, isTestEnv],
+    [api, isTestEnv, openDefaultY],
   );
 
   const hide = useCallback(
     (velocity = 0) => {
       setNavbarState('hidden');
       void api.start({
-        to: { y: HIDDEN_Y },
+        to: { y: hiddenY },
         immediate: isTestEnv,
         config: { ...config.stiff, velocity },
       });
     },
-    [api, isTestEnv],
+    [api, hiddenY, isTestEnv],
   );
 
-  const navTabs = [
-    {
-      name: t('Budget'),
-      path: '/budget',
-      style: navTabStyle,
-      Icon: SvgWallet,
-    },
-    {
-      name: t('Transaction'),
-      path: '/transactions/new',
-      style: navTabStyle,
-      Icon: SvgAdd,
-    },
-    {
-      name: t('Accounts'),
-      path: '/accounts',
-      style: navTabStyle,
-      Icon: SvgPiggyBank,
-    },
-    {
-      name: t('Reports'),
-      path: '/reports',
-      style: navTabStyle,
-      Icon: SvgReports,
-    },
-    {
-      name: t('Schedules'),
-      path: '/schedules',
-      style: navTabStyle,
-      Icon: SvgCalendar3,
-    },
-    {
-      name: t('Payees'),
-      path: '/payees',
-      style: navTabStyle,
-      Icon: SvgStoreFront,
-    },
-    {
-      name: t('Rules'),
-      path: '/rules',
-      style: navTabStyle,
-      Icon: SvgTuning,
-    },
-    ...(isUsingServer
-      ? [
-          {
-            name: t('Bank Sync'),
-            path: '/bank-sync',
-            style: navTabStyle,
-            Icon: SvgCreditCard,
-          },
-        ]
-      : []),
-    {
-      name: t('Settings'),
-      path: '/settings',
-      style: navTabStyle,
-      Icon: SvgCog,
-    },
-  ].map(tab => (
+  const navTabs = navTabDefinitions.map(tab => (
     <NavTab key={tab.path} onClick={() => openDefault()} {...tab} />
   ));
 
-  const bufferTabsCount = COLUMN_COUNT - (navTabs.length % COLUMN_COUNT);
+  const bufferTabsCount =
+    (COLUMN_COUNT - (navTabs.length % COLUMN_COUNT)) % COLUMN_COUNT;
   const bufferTabs = Array.from({ length: bufferTabsCount }).map((_, idx) => (
     <div key={idx} style={navTabStyle} />
   ));
@@ -182,14 +143,10 @@ export function MobileNavTabs() {
       cancel,
       canceled,
     }) => {
-      // if the user drags up passed a threshold, then we cancel
-      // the drag so that the sheet resets to its open position
       if (oy < 0) {
         cancel();
       }
 
-      // when the user releases the sheet, we check whether it passed
-      // the threshold for it to close, or if we reset it to its open position
       if (last) {
         if (oy > ROW_HEIGHT * 0.5 || (vy > 0.5 && dy > 0)) {
           openDefault(vy);
@@ -197,15 +154,13 @@ export function MobileNavTabs() {
           openFull({ canceled });
         }
       } else {
-        // when the user keeps dragging, we just move the sheet according to
-        // the cursor position
         void api.start({ to: { y: oy }, immediate: true });
       }
     },
     {
       from: () => [0, y.get()],
       filterTaps: true,
-      bounds: { top: -TOTAL_HEIGHT, bottom: TOTAL_HEIGHT - ROW_HEIGHT },
+      bounds: { top: -totalHeight, bottom: totalHeight - ROW_HEIGHT },
       axis: 'y',
       rubberband: true,
     },
@@ -221,7 +176,7 @@ export function MobileNavTabs() {
         backgroundColor: theme.mobileNavBackground,
         borderTop: `1px solid ${theme.menuBorder}`,
         ...styles.shadow,
-        height: TOTAL_HEIGHT + PILL_HEIGHT,
+        height: totalHeight + PILL_HEIGHT,
         width: '100%',
         position: 'fixed',
         zIndex: 100,
@@ -246,7 +201,7 @@ export function MobileNavTabs() {
           style={{
             flexDirection: 'row',
             flexWrap: 'wrap',
-            height: TOTAL_HEIGHT,
+            height: totalHeight,
             width: '100%',
           }}
         >

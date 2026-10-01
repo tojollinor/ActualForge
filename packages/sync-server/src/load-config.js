@@ -286,6 +286,16 @@ const configSchema = convict({
       env: 'ACTUAL_GITHUB_TOKEN',
     },
   },
+  actualForge: {
+    doc: 'ActualForge integration configuration.',
+
+    financeEngineUrl: {
+      doc: 'Internal URL of the ActualForge finance engine.',
+      format: String,
+      default: '',
+      env: 'ACTUALFORGE_FINANCE_ENGINE_URL',
+    },
+  },
   corsProxy: {
     doc: 'CORS proxy configuration for frontend plugins.',
 
@@ -334,6 +344,8 @@ debug(`Login method: ${configSchema.get('loginMethod')}`);
 debug(`Allowed methods: ${configSchema.get('allowedLoginMethods').join(', ')}`);
 const corsProxyEnabled = configSchema.get('corsProxy.enabled');
 debug(`CORS Proxy enabled: ${corsProxyEnabled}`);
+const financeEngineUrl = configSchema.get('actualForge.financeEngineUrl');
+debug(`ActualForge finance engine configured: ${Boolean(financeEngineUrl)}`);
 
 const httpsKey = configSchema.get('https.key');
 if (httpsKey) {
