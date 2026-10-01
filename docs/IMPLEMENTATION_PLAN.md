@@ -9,8 +9,8 @@ The project is implemented in eight large blocks.
 - ✅ Block 3 complete
 - ✅ Block 4 complete
 - ✅ Block 5 complete
-- 🧪 Block 6 implementation complete, verification pending
-- ⏭️ After verification: Block 7, Forecasts and clarification cases
+- ✅ Block 6 complete
+- ⏭️ Next: Block 7, Forecasts and clarification cases
 
 1. **Repository + Actual analysis + baseline** ✅
    - Analyze current Actual structure.
@@ -34,7 +34,7 @@ The project is implemented in eight large blocks.
 5. **Payment chains, returns, and splits** ✅
    - Add payment-chain interpretation, failed/reversed payment handling, and reversible split/link logic.
 
-6. **Transfers and credit cards** 🧪
+6. **Transfers and credit cards** ✅
    - Add transfer matching and credit-card-specific interpretation.
 
 7. **Forecasts and clarification cases**
