@@ -780,15 +780,29 @@ export function analyzeCreditCards(
 ) {
   if (!Array.isArray(candidates)) throw new ContractError('invalid_candidates');
   const profiles = listCreditCardProfiles(db);
-  const confirmedMatches = listTransferMatches(db).filter(
+  const allMatches = listTransferMatches(db);
+  const confirmedMatches = allMatches.filter(
     match => match.status === 'confirmed',
   );
-  const matchedTransactionIds = new Set(
-    confirmedMatches.flatMap(match => [
+  const interpretedTransferIds = new Set(
+    allMatches.flatMap(match => [
       match.sourceActualTransactionId,
       match.targetActualTransactionId,
     ]),
   );
+  const explicitActualTransferIds = new Set(
+    candidates
+      .filter(
+        candidate =>
+          validateCandidate(candidate) &&
+          Boolean(candidate.transferId || candidate.transferAccountId),
+      )
+      .map(candidate => candidate.actualTransactionId),
+  );
+  const nonEconomicTransactionIds = new Set([
+    ...interpretedTransferIds,
+    ...explicitActualTransferIds,
+  ]);
 
   return profiles.map(profile => {
     const cardTransactions = candidates
@@ -804,7 +818,7 @@ export function analyzeCreditCards(
       );
 
     const economicTransactions = cardTransactions.filter(
-      candidate => !matchedTransactionIds.has(candidate.actualTransactionId),
+      candidate => !nonEconomicTransactionIds.has(candidate.actualTransactionId),
     );
     const purchases = economicTransactions.filter(
       candidate => candidate.amountMinor < 0,
