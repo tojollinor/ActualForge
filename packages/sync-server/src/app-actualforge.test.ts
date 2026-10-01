@@ -96,6 +96,45 @@ describe('ActualForge finance-engine bridge', () => {
     expect(JSON.parse(payload)).toEqual({ title: 'Internet' });
   });
 
+  it('forwards payment-chain split updates to a fixed path', async () => {
+    let method = '';
+    let requestedUrl = '';
+    let payload = '';
+
+    const fetchImpl: typeof fetch = async (input, init) => {
+      requestedUrl = input.toString();
+      method = init?.method ?? '';
+      payload = String(init?.body ?? '');
+      return new Response(JSON.stringify({ chain: { id: 'chain-1' } }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    };
+
+    const response = await request(
+      createApp('http://finance-engine:5010', fetchImpl),
+    )
+      .patch('/actualforge/api/payment-chains/chain-1/links/link-1/splits')
+      .send({
+        splits: [
+          { kind: 'contract_amount', amountMinor: 4999 },
+          { kind: 'bank_fee', amountMinor: 500 },
+        ],
+      });
+
+    expect(response.statusCode).toBe(200);
+    expect(method).toBe('PATCH');
+    expect(requestedUrl).toBe(
+      'http://finance-engine:5010/api/v1/payment-chains/chain-1/links/link-1/splits',
+    );
+    expect(JSON.parse(payload)).toEqual({
+      splits: [
+        { kind: 'contract_amount', amountMinor: 4999 },
+        { kind: 'bank_fee', amountMinor: 500 },
+      ],
+    });
+  });
+
   it('does not behave as an open proxy', async () => {
     const fetchImpl: typeof fetch = async () => {
       throw new Error('fetch should not be called');
