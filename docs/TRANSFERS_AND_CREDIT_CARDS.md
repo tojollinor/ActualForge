@@ -39,6 +39,12 @@ The intended economic chain is:
 ActualForge stores only the account profile and transfer interpretation. Actual
 accounts and transactions remain authoritative.
 
+For configured cards, ActualForge also derives reversible settlement cycles from
+the confirmed card payments. Each cycle shows the card purchases/refunds since
+the previous settlement, the matching payment, and any difference. Transactions
+after the latest payment form an open current cycle. These cycles are calculated
+from the current Actual data and are not written back into Actual.
+
 ## Recognition safety
 
 A transaction is used by at most one confirmed transfer match. Equal-amount
