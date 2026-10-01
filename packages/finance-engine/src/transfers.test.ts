@@ -119,6 +119,48 @@ describe('transfer and credit-card interpretation', () => {
     db.close();
   });
 
+  it('does not treat a proposed card payment as a refund', () => {
+    const db = createTestDb();
+
+    upsertCreditCardProfile(db, {
+      actualAccountId: 'card-proposed',
+      fundingAccountId: 'checking-proposed',
+      label: 'Visa Proposed',
+    });
+
+    const candidates = [
+      {
+        actualTransactionId: 'proposed-purchase',
+        date: '2026-09-20',
+        amountMinor: -12000,
+        accountId: 'card-proposed',
+      },
+      {
+        actualTransactionId: 'proposed-checking-payment',
+        date: '2026-10-01',
+        amountMinor: -12000,
+        accountId: 'checking-proposed',
+      },
+      {
+        actualTransactionId: 'proposed-card-payment',
+        date: '2026-10-03',
+        amountMinor: 12000,
+        accountId: 'card-proposed',
+      },
+    ];
+
+    const result = suggestTransferMatches(db, candidates);
+    expect(result.matches[0].status).toBe('proposed');
+
+    const [analysis] = analyzeCreditCards(db, candidates);
+    expect(analysis.purchaseTotalMinor).toBe(12000);
+    expect(analysis.refundTotalMinor).toBe(0);
+    expect(analysis.paymentTotalMinor).toBe(0);
+    expect(analysis.economicExpenseMinor).toBe(12000);
+
+    db.close();
+  });
+
   it('builds settlement cycles and leaves newer card spending open', () => {
     const db = createTestDb();
 
