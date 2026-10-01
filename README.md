@@ -22,13 +22,18 @@ See [UPSTREAM.md](./UPSTREAM.md).
 
 ## Architecture
 
-The project keeps a single user-facing web/PWA experience based on Actual's UI. ActualForge-specific finance logic is designed to live behind that UI, with a separate `finance-engine` service introduced in the next implementation block.
+The project keeps a single user-facing web/PWA experience based on Actual's UI.
 
-See [docs/ACTUALFORGE_ARCHITECTURE.md](./docs/ACTUALFORGE_ARCHITECTURE.md).
+ActualForge now includes a separate internal `finance-engine` service for its own finance interpretation data and logic. The engine uses its own SQLite persistence, keeps Actual transactions authoritative, and is not exposed as a second end-user interface.
+
+See:
+- [docs/ACTUALFORGE_ARCHITECTURE.md](./docs/ACTUALFORGE_ARCHITECTURE.md)
+- [docs/FINANCE_ENGINE.md](./docs/FINANCE_ENGINE.md)
+- [docs/DOCKER.md](./docs/DOCKER.md)
 
 ## Development
 
-Actual v26.9.0 requires Node.js 22+ and Yarn 4.17.1. Actual's sync-server Docker build currently uses Node 24.
+Actual v26.9.0 requires Node.js 22+ and Yarn 4.17.1. ActualForge's Docker builds use Node 24.
 
 See [docs/DEVELOPMENT.md](./docs/DEVELOPMENT.md).
 
