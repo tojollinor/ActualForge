@@ -356,6 +356,38 @@ export function TransfersPage() {
                       </Text>
                     </View>
                   )}
+                  {analysis && analysis.cycles.length > 0 && (
+                    <View style={{ gap: 6, paddingTop: 4 }}>
+                      <Text style={{ fontWeight: 600 }}>
+                        Interpretierte Abrechnungszeiträume
+                      </Text>
+                      {analysis.cycles.slice(0, 4).map(cycle => (
+                        <View
+                          key={cycle.id}
+                          style={{
+                            borderTop: `1px solid ${theme.tableBorder}`,
+                            paddingTop: 6,
+                            gap: 2,
+                          }}
+                        >
+                          <Text>
+                            {cycle.status === 'open'
+                              ? 'Aktueller Zeitraum'
+                              : `Abrechnung bis ${cycle.paymentDate ?? cycle.periodEnd ?? '–'}`}
+                          </Text>
+                          <Text style={{ opacity: 0.7 }}>
+                            Käufe/Erstattungen netto:{' '}
+                            {formatAmount(cycle.netExpenseMinor)}
+                            {' · '}
+                            Zahlung: {formatAmount(cycle.paymentAmountMinor)}
+                            {cycle.status === 'difference'
+                              ? ` · Differenz: ${formatAmount(cycle.differenceMinor)}`
+                              : ''}
+                          </Text>
+                        </View>
+                      ))}
+                    </View>
+                  )}
                   <View style={{ alignItems: 'flex-start' }}>
                     <Button
                       variant="normal"
