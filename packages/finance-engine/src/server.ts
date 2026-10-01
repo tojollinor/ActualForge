@@ -31,8 +31,24 @@ import {
   type PaymentRole,
   type TransactionSplitInput,
 } from './payment-chains.js';
+import {
+  analyzeCreditCards,
+  confirmProposedTransferMatch,
+  confirmTransferMatch,
+  getTransferOverview,
+  listCreditCardProfiles,
+  listTransferMatches,
+  removeCreditCardProfile,
+  removeTransferMatch,
+  resolveTransferClarification,
+  suggestTransferMatches,
+  upsertCreditCardProfile,
+  type CreditCardProfileInput,
+  type TransferCandidate,
+  type TransferMatchKind,
+} from './transfers.js';
 
-export const FINANCE_ENGINE_VERSION = '0.3.0';
+export const FINANCE_ENGINE_VERSION = '0.4.0';
 
 interface ServerDependencies {
   config: FinanceEngineConfig;
@@ -398,6 +414,193 @@ async function handlePaymentChainsRequest(
   return true;
 }
 
+
+function matchTransferPath(pathname: string) {
+  const clarification = pathname.match(
+    /^\/api\/v1\/transfers\/clarifications\/([^/]+)$/,
+  );
+  if (clarification) {
+    return {
+      kind: 'clarification' as const,
+      caseId: decodeURIComponent(clarification[1]),
+    };
+  }
+
+  const match = pathname.match(/^\/api\/v1\/transfers\/matches\/([^/]+)$/);
+  if (match) {
+    return {
+      kind: 'match' as const,
+      matchId: decodeURIComponent(match[1]),
+    };
+  }
+
+  const card = pathname.match(/^\/api\/v1\/credit-cards\/([^/]+)$/);
+  if (card) {
+    return {
+      kind: 'credit-card' as const,
+      accountId: decodeURIComponent(card[1]),
+    };
+  }
+
+  if (pathname === '/api/v1/transfers') {
+    return { kind: 'transfers' as const };
+  }
+  if (pathname === '/api/v1/transfers/suggestions') {
+    return { kind: 'suggestions' as const };
+  }
+  if (pathname === '/api/v1/transfers/matches') {
+    return { kind: 'matches' as const };
+  }
+  if (pathname === '/api/v1/credit-cards') {
+    return { kind: 'credit-cards' as const };
+  }
+  if (pathname === '/api/v1/credit-cards/analyze') {
+    return { kind: 'credit-card-analysis' as const };
+  }
+
+  return null;
+}
+
+async function handleTransfersRequest(
+  request: http.IncomingMessage,
+  response: http.ServerResponse,
+  db: FinanceDatabase,
+  url: URL,
+): Promise<boolean> {
+  const route = matchTransferPath(url.pathname);
+  if (!route) return false;
+  const method = request.method ?? 'GET';
+
+  if (route.kind === 'transfers' && method === 'GET') {
+    sendJson(response, 200, getTransferOverview(db));
+    return true;
+  }
+
+  if (route.kind === 'suggestions' && method === 'POST') {
+    const body = (await readJson(request)) as {
+      candidates?: TransferCandidate[];
+    };
+    sendJson(
+      response,
+      200,
+      suggestTransferMatches(db, body.candidates ?? []),
+    );
+    return true;
+  }
+
+  if (route.kind === 'matches') {
+    if (method === 'GET') {
+      sendJson(response, 200, { matches: listTransferMatches(db) });
+      return true;
+    }
+
+    if (method === 'POST') {
+      const body = (await readJson(request)) as {
+        source: TransferCandidate;
+        target: TransferCandidate;
+        kind?: TransferMatchKind;
+        confidence?: number;
+      };
+      sendJson(response, 201, {
+        match: confirmTransferMatch(db, body),
+        overview: getTransferOverview(db),
+      });
+      return true;
+    }
+  }
+
+  if (route.kind === 'match') {
+    if (method === 'PATCH') {
+      sendJson(response, 200, {
+        match: confirmProposedTransferMatch(db, route.matchId),
+        overview: getTransferOverview(db),
+      });
+      return true;
+    }
+
+    if (method === 'DELETE') {
+      removeTransferMatch(db, route.matchId);
+      sendJson(response, 200, getTransferOverview(db));
+      return true;
+    }
+  }
+
+  if (route.kind === 'clarification' && method === 'PATCH') {
+    const body = (await readJson(request)) as
+      | { action: 'dismiss' }
+      | { action: 'confirm'; kind?: TransferMatchKind };
+    resolveTransferClarification(db, route.caseId, body);
+    sendJson(response, 200, getTransferOverview(db));
+    return true;
+  }
+
+  if (route.kind === 'credit-cards') {
+    if (method === 'GET') {
+      sendJson(response, 200, { creditCards: listCreditCardProfiles(db) });
+      return true;
+    }
+
+    if (method === 'POST') {
+      const body = (await readJson(request)) as CreditCardProfileInput;
+      sendJson(response, 201, {
+        creditCard: upsertCreditCardProfile(db, body),
+      });
+      return true;
+    }
+  }
+
+  if (route.kind === 'credit-card') {
+    if (method === 'PATCH') {
+      const body = (await readJson(request)) as Omit<
+        CreditCardProfileInput,
+        'actualAccountId'
+      >;
+      sendJson(response, 200, {
+        creditCard: upsertCreditCardProfile(db, {
+          ...body,
+          actualAccountId: route.accountId,
+        }),
+      });
+      return true;
+    }
+
+    if (method === 'DELETE') {
+      removeCreditCardProfile(db, route.accountId);
+      sendJson(response, 200, { ok: true });
+      return true;
+    }
+  }
+
+  if (route.kind === 'credit-card-analysis' && method === 'POST') {
+    const body = (await readJson(request)) as {
+      candidates?: TransferCandidate[];
+    };
+    sendJson(response, 200, {
+      creditCards: analyzeCreditCards(db, body.candidates ?? []),
+    });
+    return true;
+  }
+
+  response.setHeader(
+    'allow',
+    route.kind === 'transfers'
+      ? 'GET'
+      : route.kind === 'suggestions'
+        ? 'POST'
+        : route.kind === 'matches'
+          ? 'GET, POST'
+          : route.kind === 'match' || route.kind === 'clarification'
+            ? 'PATCH, DELETE'
+            : route.kind === 'credit-cards'
+              ? 'GET, POST'
+              : route.kind === 'credit-card'
+                ? 'PATCH, DELETE'
+                : 'POST',
+  );
+  sendJson(response, 405, { error: 'method_not_allowed' });
+  return true;
+}
+
 export function createFinanceEngineServer({
   config,
   db,
@@ -411,6 +614,10 @@ export function createFinanceEngineServer({
       }
 
       if (await handlePaymentChainsRequest(request, response, db, url)) {
+        return;
+      }
+
+      if (await handleTransfersRequest(request, response, db, url)) {
         return;
       }
 
@@ -470,7 +677,8 @@ export function createFinanceEngineServer({
             paymentChains: 'active',
             transactionLinks: 'active',
             transactionSplits: 'active',
-            transferMatches: 'schema-ready',
+            transferMatches: 'active',
+            creditCards: 'active',
             clarificationCases: 'schema-ready',
             predictions: 'schema-ready',
             merchantMappings: 'schema-ready',
