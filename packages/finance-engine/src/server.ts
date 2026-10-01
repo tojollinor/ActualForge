@@ -434,6 +434,10 @@ function matchTransferPath(pathname: string) {
     };
   }
 
+  if (pathname === '/api/v1/credit-cards/analyze') {
+    return { kind: 'credit-card-analysis' as const };
+  }
+
   const card = pathname.match(/^\/api\/v1\/credit-cards\/([^/]+)$/);
   if (card) {
     return {
@@ -454,10 +458,6 @@ function matchTransferPath(pathname: string) {
   if (pathname === '/api/v1/credit-cards') {
     return { kind: 'credit-cards' as const };
   }
-  if (pathname === '/api/v1/credit-cards/analyze') {
-    return { kind: 'credit-card-analysis' as const };
-  }
-
   return null;
 }
 
