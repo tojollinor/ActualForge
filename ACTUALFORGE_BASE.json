@@ -1,0 +1,10 @@
+{
+  "project": "ActualForge",
+  "upstream": {
+    "repository": "actualbudget/actual",
+    "release": "v26.9.0",
+    "commit": "59fe126f637d858c061e1eeedbef5436c8f2225a",
+    "pinned_at": "2026-10-01"
+  },
+  "update_policy": "manual-only"
+}
