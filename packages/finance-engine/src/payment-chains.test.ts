@@ -154,8 +154,6 @@ describe('payment chains', () => {
     const contract = createContract(db, {
       title: 'Gym',
       amountMinor: 3000,
-      accountId: 'account-1',
-      nextPaymentDate: '2026-10-10',
     });
     const chain = createPaymentChain(db, { contractId: contract.id });
 
