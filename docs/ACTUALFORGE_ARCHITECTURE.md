@@ -1,12 +1,12 @@
 # ActualForge architecture baseline
 
-This document records the architecture decisions for the first implementation baseline.
+This document records the architecture decisions for the implementation baseline.
 
 ## Product shape
 
 ActualForge keeps one primary user-facing interface: the Actual web/PWA application with ActualForge features integrated into it.
 
-The intended runtime shape is:
+The runtime shape is:
 
 ```text
 Browser / PWA
@@ -14,11 +14,13 @@ Browser / PWA
     +-- Actual / ActualForge UI
     |
     +-- Actual sync-server
-    |
-    +-- finance-engine (ActualForge extension service, introduced in Block 2)
+              |
+              +-- internal network --> finance-engine
+                                         |
+                                         +-- separate SQLite persistence
 ```
 
-The finance engine does not get a separate end-user web UI.
+The finance engine does not get a separate end-user web UI and is not published to the host by the default Compose configuration.
 
 ## Upstream structure at the pinned base
 
@@ -34,11 +36,14 @@ Important packages and files:
 - `packages/loot-core/src/server/sync`: local synchronization integration.
 - `packages/sync-server`: synchronization/web server.
 - `packages/api`: programmatic Actual API.
-- `sync-server.Dockerfile`: upstream server image build.
+- `packages/finance-engine`: ActualForge-owned interpretation service.
+- `sync-server.Dockerfile`: ActualForge/Actual server image build.
+- `finance-engine.Dockerfile`: finance-engine image build.
+- `compose.yaml`: combined ActualForge runtime stack.
 
 ## ActualForge extension boundaries
 
-ActualForge should prefer additive integration over invasive rewrites.
+ActualForge prefers additive integration over invasive rewrites.
 
 ### UI
 
@@ -54,7 +59,7 @@ Read access should use Actual's public/query layers where possible. Mutations to
 
 ActualForge-specific concepts are modeled separately and reference Actual transaction IDs where needed.
 
-Planned domain objects:
+The Block 2 schema includes:
 
 - Contract
 - PaymentChain
@@ -62,14 +67,25 @@ Planned domain objects:
 - TransferMatch
 - ClarificationCase
 - PredictionEntry
+- MerchantMapping
+- RecognitionRule
 
 This makes interpretation reversible and keeps the upstream transaction history intact.
 
 ### Finance engine
 
-The planned `finance-engine` service owns ActualForge-specific interpretation, matching, clarification, and prediction logic. Its persistent data is separate from Actual's original transaction tables.
+The `finance-engine` service owns ActualForge-specific interpretation, matching, clarification, and prediction data.
 
-Block 2 defines its concrete API, persistence, container layout, health checks, and integration contract.
+Its persistent data is stored in a separate SQLite database and separate Docker volume. The service has no direct mount of Actual's data volume.
+
+Initial internal endpoints:
+
+- `GET /health`
+- `GET /ready`
+- `GET /api/v1/status`
+- `GET /api/v1/capabilities`
+
+Block 2 intentionally exposes no write endpoints. Block 3 adds the application-side integration path from the ActualForge web experience to the engine.
 
 ## Compatibility rule
 
@@ -77,4 +93,4 @@ Changes to upstream Actual files should be kept small and concentrated around ex
 
 ## Security/privacy baseline
 
-Actual is local-first. ActualForge should preserve that expectation: finance data must not be sent to an external cloud service as a hidden requirement. Any future external integration must be explicit and optional.
+Actual is local-first. ActualForge preserves that expectation: finance data must not be sent to an external cloud service as a hidden requirement. Any future external integration must be explicit and optional.
