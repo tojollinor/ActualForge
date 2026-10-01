@@ -791,27 +791,38 @@ export function analyzeCreditCards(
   );
 
   return profiles.map(profile => {
-    const cardTransactions = candidates.filter(
-      candidate =>
-        validateCandidate(candidate) &&
-        candidate.accountId === profile.actualAccountId,
-    );
+    const cardTransactions = candidates
+      .filter(
+        candidate =>
+          validateCandidate(candidate) &&
+          candidate.accountId === profile.actualAccountId,
+      )
+      .sort(
+        (a, b) =>
+          a.date.localeCompare(b.date) ||
+          a.actualTransactionId.localeCompare(b.actualTransactionId),
+      );
 
-    const purchases = cardTransactions.filter(
-      candidate =>
-        candidate.amountMinor < 0 &&
-        !matchedTransactionIds.has(candidate.actualTransactionId),
+    const economicTransactions = cardTransactions.filter(
+      candidate => !matchedTransactionIds.has(candidate.actualTransactionId),
     );
-    const refunds = cardTransactions.filter(
-      candidate =>
-        candidate.amountMinor > 0 &&
-        !matchedTransactionIds.has(candidate.actualTransactionId),
+    const purchases = economicTransactions.filter(
+      candidate => candidate.amountMinor < 0,
     );
-    const payments = confirmedMatches.filter(
-      match =>
-        match.kind === 'credit_card_payment' &&
-        match.targetAccountId === profile.actualAccountId,
+    const refunds = economicTransactions.filter(
+      candidate => candidate.amountMinor > 0,
     );
+    const payments = confirmedMatches
+      .filter(
+        match =>
+          match.kind === 'credit_card_payment' &&
+          match.targetAccountId === profile.actualAccountId,
+      )
+      .sort((a, b) => {
+        const left = a.targetDate ?? a.sourceDate ?? '';
+        const right = b.targetDate ?? b.sourceDate ?? '';
+        return left.localeCompare(right) || a.id.localeCompare(b.id);
+      });
 
     const purchaseTotalMinor = purchases.reduce(
       (sum, transaction) => sum + Math.abs(transaction.amountMinor),
@@ -826,6 +837,121 @@ export function analyzeCreditCards(
       0,
     );
 
+    let previousSettlementDate: string | null = null;
+    const cycles: Array<{
+      id: string;
+      periodStart: string | null;
+      periodEnd: string | null;
+      paymentDate: string | null;
+      purchaseCount: number;
+      purchaseTotalMinor: number;
+      refundCount: number;
+      refundTotalMinor: number;
+      netExpenseMinor: number;
+      paymentAmountMinor: number;
+      differenceMinor: number;
+      status: 'settled' | 'difference' | 'open';
+      paymentMatchId: string | null;
+      transactionIds: string[];
+    }> = [];
+
+    for (const payment of payments) {
+      const paymentDate = payment.targetDate ?? payment.sourceDate;
+      if (!paymentDate) continue;
+
+      const periodTransactions = economicTransactions.filter(
+        transaction =>
+          (!previousSettlementDate ||
+            transaction.date > previousSettlementDate) &&
+          transaction.date <= paymentDate,
+      );
+      const cyclePurchases = periodTransactions.filter(
+        transaction => transaction.amountMinor < 0,
+      );
+      const cycleRefunds = periodTransactions.filter(
+        transaction => transaction.amountMinor > 0,
+      );
+      const cyclePurchaseTotal = cyclePurchases.reduce(
+        (sum, transaction) => sum + Math.abs(transaction.amountMinor),
+        0,
+      );
+      const cycleRefundTotal = cycleRefunds.reduce(
+        (sum, transaction) => sum + Math.abs(transaction.amountMinor),
+        0,
+      );
+      const netExpenseMinor = Math.max(
+        0,
+        cyclePurchaseTotal - cycleRefundTotal,
+      );
+      const paymentAmountMinor = Math.abs(payment.amountMinor ?? 0);
+      const differenceMinor = paymentAmountMinor - netExpenseMinor;
+
+      cycles.push({
+        id: payment.id,
+        periodStart: periodTransactions[0]?.date ?? previousSettlementDate,
+        periodEnd: paymentDate,
+        paymentDate,
+        purchaseCount: cyclePurchases.length,
+        purchaseTotalMinor: cyclePurchaseTotal,
+        refundCount: cycleRefunds.length,
+        refundTotalMinor: cycleRefundTotal,
+        netExpenseMinor,
+        paymentAmountMinor,
+        differenceMinor,
+        status: Math.abs(differenceMinor) <= 1 ? 'settled' : 'difference',
+        paymentMatchId: payment.id,
+        transactionIds: periodTransactions.map(
+          transaction => transaction.actualTransactionId,
+        ),
+      });
+
+      previousSettlementDate = paymentDate;
+    }
+
+    const openTransactions = economicTransactions.filter(
+      transaction =>
+        !previousSettlementDate || transaction.date > previousSettlementDate,
+    );
+    if (openTransactions.length > 0) {
+      const openPurchases = openTransactions.filter(
+        transaction => transaction.amountMinor < 0,
+      );
+      const openRefunds = openTransactions.filter(
+        transaction => transaction.amountMinor > 0,
+      );
+      const openPurchaseTotal = openPurchases.reduce(
+        (sum, transaction) => sum + Math.abs(transaction.amountMinor),
+        0,
+      );
+      const openRefundTotal = openRefunds.reduce(
+        (sum, transaction) => sum + Math.abs(transaction.amountMinor),
+        0,
+      );
+      const netExpenseMinor = Math.max(
+        0,
+        openPurchaseTotal - openRefundTotal,
+      );
+
+      cycles.push({
+        id: `open:${profile.actualAccountId}`,
+        periodStart: openTransactions[0]?.date ?? previousSettlementDate,
+        periodEnd: openTransactions.at(-1)?.date ?? null,
+        paymentDate: null,
+        purchaseCount: openPurchases.length,
+        purchaseTotalMinor: openPurchaseTotal,
+        refundCount: openRefunds.length,
+        refundTotalMinor: openRefundTotal,
+        netExpenseMinor,
+        paymentAmountMinor: 0,
+        differenceMinor: -netExpenseMinor,
+        status: 'open',
+        paymentMatchId: null,
+        transactionIds: openTransactions.map(
+          transaction => transaction.actualTransactionId,
+        ),
+      });
+    }
+
     return {
       ...profile,
       purchaseCount: purchases.length,
@@ -839,6 +965,7 @@ export function analyzeCreditCards(
         match.sourceActualTransactionId,
         match.targetActualTransactionId,
       ]),
+      cycles: cycles.reverse(),
     };
   });
 }
