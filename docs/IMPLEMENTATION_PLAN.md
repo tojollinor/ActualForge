@@ -2,15 +2,22 @@
 
 The project is implemented in eight large blocks.
 
-1. **Repository + Actual analysis + baseline**
+## Status
+
+- ✅ Block 1 complete
+- ✅ Block 2 complete
+- ⏭️ Next: Block 3, UI integration
+
+1. **Repository + Actual analysis + baseline** ✅
    - Analyze current Actual structure.
    - Pin a stable upstream revision.
    - Prepare ActualForge repository, attribution, branch/upstream policy, and development baseline.
    - Ensure the Actual base can be built/run reproducibly.
 
-2. **Docker + finance-engine skeleton**
+2. **Docker + finance-engine skeleton** ✅
    - Add the finance-engine service.
    - Define persistence, API, health check, Compose layout, and image strategy.
+   - Keep Actual transaction data authoritative and store ActualForge interpretation separately.
 
 3. **UI integration**
    - Integrate ActualForge navigation and UI shell into the Actual web/PWA experience.
