@@ -151,7 +151,7 @@ export async function createContract(
 ): Promise<Contract> {
   const result = (await send(
     'actualforge-contract-create',
-    payload,
+    { ...payload },
   )) as { contract: Contract };
   return result.contract;
 }
@@ -166,7 +166,7 @@ export async function updateContract(
 ): Promise<Contract> {
   const result = (await send('actualforge-contract-update', {
     id,
-    changes,
+    changes: { ...changes },
   })) as { contract: Contract };
   return result.contract;
 }
@@ -184,7 +184,7 @@ export async function linkContractTransaction(
 ): Promise<ContractDetail> {
   const result = (await send('actualforge-contract-link', {
     id,
-    link,
+    link: { ...link },
   })) as { detail: ContractDetail };
   return result.detail;
 }
@@ -205,7 +205,7 @@ export async function suggestContractTransactions(
 }> {
   return (await send('actualforge-contract-suggestions', {
     id,
-    candidates,
+    candidates: candidates.map(candidate => ({ ...candidate })),
   })) as {
     suggestions: ContractSuggestion[];
     detail: ContractDetail;
