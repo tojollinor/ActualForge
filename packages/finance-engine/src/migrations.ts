@@ -174,6 +174,56 @@ const migrations: Migration[] = [
         WHERE contract_id IS NOT NULL;
     `,
   },
+  {
+    version: 3,
+    name: 'payment-chains-returns-splits',
+    sql: `
+      ALTER TABLE payment_chains ADD COLUMN title TEXT;
+      ALTER TABLE payment_chains ADD COLUMN account_id TEXT;
+      ALTER TABLE payment_chains ADD COLUMN settled_at TEXT;
+      ALTER TABLE payment_chains ADD COLUMN failure_reason TEXT;
+
+      ALTER TABLE transaction_links ADD COLUMN signed_amount_minor INTEGER;
+      ALTER TABLE transaction_links ADD COLUMN occurred_on TEXT;
+
+      ALTER TABLE clarification_cases ADD COLUMN payment_chain_id TEXT;
+      ALTER TABLE clarification_cases ADD COLUMN actual_transaction_id TEXT;
+      ALTER TABLE clarification_cases ADD COLUMN confidence REAL;
+
+      CREATE TABLE IF NOT EXISTS transaction_splits (
+        id TEXT PRIMARY KEY,
+        payment_chain_id TEXT NOT NULL,
+        transaction_link_id TEXT NOT NULL,
+        actual_transaction_id TEXT NOT NULL,
+        kind TEXT NOT NULL,
+        amount_minor INTEGER NOT NULL,
+        notes TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        FOREIGN KEY (payment_chain_id) REFERENCES payment_chains(id) ON DELETE CASCADE,
+        FOREIGN KEY (transaction_link_id) REFERENCES transaction_links(id) ON DELETE CASCADE,
+        CHECK (amount_minor >= 0)
+      );
+
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_transaction_links_chain_transaction
+        ON transaction_links(payment_chain_id, actual_transaction_id)
+        WHERE payment_chain_id IS NOT NULL;
+      CREATE INDEX IF NOT EXISTS idx_transaction_links_chain_date
+        ON transaction_links(payment_chain_id, occurred_on);
+      CREATE INDEX IF NOT EXISTS idx_transaction_splits_chain
+        ON transaction_splits(payment_chain_id);
+      CREATE INDEX IF NOT EXISTS idx_transaction_splits_link
+        ON transaction_splits(transaction_link_id);
+      CREATE INDEX IF NOT EXISTS idx_clarification_cases_chain_status
+        ON clarification_cases(payment_chain_id, status);
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_clarification_open_chain_transaction
+        ON clarification_cases(payment_chain_id, actual_transaction_id, kind)
+        WHERE payment_chain_id IS NOT NULL
+          AND actual_transaction_id IS NOT NULL
+          AND status = 'open';
+    `,
+  },
+
 ];
 
 export function runMigrations(db: Database.Database): void {
