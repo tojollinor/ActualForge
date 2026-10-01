@@ -497,6 +497,22 @@ export interface CreditCardAnalysis extends CreditCardProfile {
   paymentTotalMinor: number;
   economicExpenseMinor: number;
   paymentTransactionIds: string[];
+  cycles: Array<{
+    id: string;
+    periodStart: string | null;
+    periodEnd: string | null;
+    paymentDate: string | null;
+    purchaseCount: number;
+    purchaseTotalMinor: number;
+    refundCount: number;
+    refundTotalMinor: number;
+    netExpenseMinor: number;
+    paymentAmountMinor: number;
+    differenceMinor: number;
+    status: 'settled' | 'difference' | 'open';
+    paymentMatchId: string | null;
+    transactionIds: string[];
+  }>;
 }
 
 export interface TransferOverview {
