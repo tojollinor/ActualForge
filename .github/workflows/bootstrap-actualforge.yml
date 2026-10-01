@@ -1,0 +1,85 @@
+name: Bootstrap ActualForge base
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  import-and-verify:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out ActualForge bootstrap
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Check out pinned Actual base
+        uses: actions/checkout@v4
+        with:
+          repository: actualbudget/actual
+          ref: 59fe126f637d858c061e1eeedbef5436c8f2225a
+          path: .actualforge-upstream
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Import upstream source and restore ActualForge overlay
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mkdir -p /tmp/actualforge-overlay/docs
+          cp README.md /tmp/actualforge-overlay/README.md
+          cp LICENSE.txt /tmp/actualforge-overlay/LICENSE.txt
+          cp UPSTREAM.md /tmp/actualforge-overlay/UPSTREAM.md
+          cp ACTUALFORGE_BASE.json /tmp/actualforge-overlay/ACTUALFORGE_BASE.json
+          cp -a docs/. /tmp/actualforge-overlay/docs/
+
+          rm -rf .actualforge-upstream/.git
+
+          find . -mindepth 1 -maxdepth 1 \
+            ! -name .git \
+            ! -name .actualforge-upstream \
+            -exec rm -rf {} +
+
+          cp -a .actualforge-upstream/. .
+          rm -rf .actualforge-upstream
+
+          # Upstream workflows are intentionally not enabled in ActualForge.
+          # ActualForge CI will be added deliberately in a later block.
+          rm -rf .github/workflows
+
+          cp -a /tmp/actualforge-overlay/. .
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'yarn'
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Install dependencies
+        run: yarn install --immutable
+
+      - name: Verify server build
+        env:
+          NODE_OPTIONS: --max_old_space_size=6144
+        run: yarn build:server
+
+      - name: Commit pinned Actual base
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "chore: import Actual v26.9.0 pinned base"
+          git push origin HEAD:main
