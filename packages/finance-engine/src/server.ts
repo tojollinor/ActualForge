@@ -18,8 +18,21 @@ import {
   getSchemaVersion,
   type FinanceDatabase,
 } from './db.js';
+import {
+  confirmPaymentChainLink,
+  createPaymentChain,
+  getPaymentChainDetail,
+  listPaymentChains,
+  removePaymentChainLink,
+  replacePaymentChainSplits,
+  resolveClarificationCase,
+  suggestPaymentChainLinks,
+  type PaymentChainInput,
+  type PaymentRole,
+  type TransactionSplitInput,
+} from './payment-chains.js';
 
-export const FINANCE_ENGINE_VERSION = '0.2.0';
+export const FINANCE_ENGINE_VERSION = '0.3.0';
 
 interface ServerDependencies {
   config: FinanceEngineConfig;
@@ -201,6 +214,190 @@ async function handleContractsRequest(
   return true;
 }
 
+
+function matchPaymentChainPath(pathname: string) {
+  const clarification = pathname.match(
+    /^\/api\/v1\/payment-chains\/([^/]+)\/clarifications\/([^/]+)$/,
+  );
+  if (clarification) {
+    return {
+      kind: 'clarification' as const,
+      chainId: decodeURIComponent(clarification[1]),
+      caseId: decodeURIComponent(clarification[2]),
+    };
+  }
+
+  const splits = pathname.match(
+    /^\/api\/v1\/payment-chains\/([^/]+)\/links\/([^/]+)\/splits$/,
+  );
+  if (splits) {
+    return {
+      kind: 'splits' as const,
+      chainId: decodeURIComponent(splits[1]),
+      linkId: decodeURIComponent(splits[2]),
+    };
+  }
+
+  const link = pathname.match(
+    /^\/api\/v1\/payment-chains\/([^/]+)\/links\/([^/]+)$/,
+  );
+  if (link) {
+    return {
+      kind: 'link' as const,
+      chainId: decodeURIComponent(link[1]),
+      linkId: decodeURIComponent(link[2]),
+    };
+  }
+
+  const links = pathname.match(
+    /^\/api\/v1\/payment-chains\/([^/]+)\/links$/,
+  );
+  if (links) {
+    return {
+      kind: 'links' as const,
+      chainId: decodeURIComponent(links[1]),
+    };
+  }
+
+  const suggestions = pathname.match(
+    /^\/api\/v1\/payment-chains\/([^/]+)\/suggestions$/,
+  );
+  if (suggestions) {
+    return {
+      kind: 'suggestions' as const,
+      chainId: decodeURIComponent(suggestions[1]),
+    };
+  }
+
+  const chain = pathname.match(/^\/api\/v1\/payment-chains\/([^/]+)$/);
+  if (chain) {
+    return {
+      kind: 'chain' as const,
+      chainId: decodeURIComponent(chain[1]),
+    };
+  }
+
+  if (pathname === '/api/v1/payment-chains') {
+    return { kind: 'chains' as const };
+  }
+
+  return null;
+}
+
+async function handlePaymentChainsRequest(
+  request: http.IncomingMessage,
+  response: http.ServerResponse,
+  db: FinanceDatabase,
+  url: URL,
+): Promise<boolean> {
+  const route = matchPaymentChainPath(url.pathname);
+  if (!route) return false;
+  const method = request.method ?? 'GET';
+
+  if (route.kind === 'chains') {
+    if (method === 'GET') {
+      sendJson(response, 200, {
+        paymentChains: listPaymentChains(
+          db,
+          url.searchParams.get('contractId'),
+        ),
+      });
+      return true;
+    }
+
+    if (method === 'POST') {
+      const body = (await readJson(request)) as PaymentChainInput;
+      sendJson(response, 201, { paymentChain: createPaymentChain(db, body) });
+      return true;
+    }
+  }
+
+  if (route.kind === 'chain' && method === 'GET') {
+    sendJson(response, 200, getPaymentChainDetail(db, route.chainId));
+    return true;
+  }
+
+  if (route.kind === 'links' && method === 'POST') {
+    const body = (await readJson(request)) as {
+      actualTransactionId: string;
+      role: PaymentRole;
+      amountMinor: number;
+      date: string;
+      confidence?: number | null;
+      metadata?: Record<string, unknown> | null;
+      splits?: TransactionSplitInput[];
+    };
+    confirmPaymentChainLink(db, route.chainId, body);
+    sendJson(response, 200, getPaymentChainDetail(db, route.chainId));
+    return true;
+  }
+
+  if (route.kind === 'link' && method === 'DELETE') {
+    removePaymentChainLink(db, route.chainId, route.linkId);
+    sendJson(response, 200, getPaymentChainDetail(db, route.chainId));
+    return true;
+  }
+
+  if (route.kind === 'splits' && method === 'PATCH') {
+    const body = (await readJson(request)) as { splits?: TransactionSplitInput[] };
+    replacePaymentChainSplits(
+      db,
+      route.chainId,
+      route.linkId,
+      body.splits ?? [],
+    );
+    sendJson(response, 200, getPaymentChainDetail(db, route.chainId));
+    return true;
+  }
+
+  if (route.kind === 'suggestions' && method === 'POST') {
+    const body = (await readJson(request)) as {
+      candidates?: TransactionCandidate[];
+    };
+    sendJson(response, 200, {
+      suggestions: suggestPaymentChainLinks(
+        db,
+        route.chainId,
+        body.candidates ?? [],
+      ),
+      detail: getPaymentChainDetail(db, route.chainId),
+    });
+    return true;
+  }
+
+  if (route.kind === 'clarification' && method === 'PATCH') {
+    const body = (await readJson(request)) as
+      | { action: 'dismiss' }
+      | {
+          action: 'confirm';
+          role: PaymentRole;
+          amountMinor: number;
+          date: string;
+          splits?: TransactionSplitInput[];
+        };
+    resolveClarificationCase(db, route.chainId, route.caseId, body);
+    sendJson(response, 200, getPaymentChainDetail(db, route.chainId));
+    return true;
+  }
+
+  response.setHeader(
+    'allow',
+    route.kind === 'chains'
+      ? 'GET, POST'
+      : route.kind === 'chain'
+        ? 'GET'
+        : route.kind === 'links'
+          ? 'POST'
+          : route.kind === 'link'
+            ? 'DELETE'
+            : route.kind === 'splits' || route.kind === 'clarification'
+              ? 'PATCH'
+              : 'POST',
+  );
+  sendJson(response, 405, { error: 'method_not_allowed' });
+  return true;
+}
+
 export function createFinanceEngineServer({
   config,
   db,
@@ -210,6 +407,10 @@ export function createFinanceEngineServer({
 
     try {
       if (await handleContractsRequest(request, response, db, url)) {
+        return;
+      }
+
+      if (await handlePaymentChainsRequest(request, response, db, url)) {
         return;
       }
 
@@ -266,8 +467,9 @@ export function createFinanceEngineServer({
         sendJson(response, 200, {
           domains: {
             contracts: 'active',
-            paymentChains: 'schema-ready',
+            paymentChains: 'active',
             transactionLinks: 'active',
+            transactionSplits: 'active',
             transferMatches: 'schema-ready',
             clarificationCases: 'schema-ready',
             predictions: 'schema-ready',
