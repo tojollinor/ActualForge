@@ -27,6 +27,31 @@ export type ActualForgeHandlers = {
     id: string;
     candidates: Array<Record<string, unknown>>;
   }) => Promise<unknown>;
+  'actualforge-payment-chains-list': () => Promise<unknown>;
+  'actualforge-payment-chain-create': (input: Record<string, unknown>) => Promise<unknown>;
+  'actualforge-payment-chain-get': (input: { id: string }) => Promise<unknown>;
+  'actualforge-payment-chain-link': (input: {
+    id: string;
+    link: Record<string, unknown>;
+  }) => Promise<unknown>;
+  'actualforge-payment-chain-unlink': (input: {
+    id: string;
+    linkId: string;
+  }) => Promise<unknown>;
+  'actualforge-payment-chain-splits': (input: {
+    id: string;
+    linkId: string;
+    splits: Array<Record<string, unknown>>;
+  }) => Promise<unknown>;
+  'actualforge-payment-chain-suggestions': (input: {
+    id: string;
+    candidates: Array<Record<string, unknown>>;
+  }) => Promise<unknown>;
+  'actualforge-payment-chain-clarification': (input: {
+    id: string;
+    caseId: string;
+    resolution: Record<string, unknown>;
+  }) => Promise<unknown>;
 };
 
 export const app = createApp<ActualForgeHandlers>();
@@ -123,4 +148,54 @@ app.method('actualforge-contract-suggestions', ({ id, candidates }) =>
     'POST',
     { candidates },
   ),
+);
+
+
+app.method('actualforge-payment-chains-list', () =>
+  request('/payment-chains'),
+);
+
+app.method('actualforge-payment-chain-create', input =>
+  request('/payment-chains', 'POST', input),
+);
+
+app.method('actualforge-payment-chain-get', ({ id }) =>
+  request(`/payment-chains/${encodeURIComponent(id)}`),
+);
+
+app.method('actualforge-payment-chain-link', ({ id, link }) =>
+  request(`/payment-chains/${encodeURIComponent(id)}/links`, 'POST', link),
+);
+
+app.method('actualforge-payment-chain-unlink', ({ id, linkId }) =>
+  request(
+    `/payment-chains/${encodeURIComponent(id)}/links/${encodeURIComponent(linkId)}`,
+    'DELETE',
+  ),
+);
+
+app.method('actualforge-payment-chain-splits', ({ id, linkId, splits }) =>
+  request(
+    `/payment-chains/${encodeURIComponent(id)}/links/${encodeURIComponent(linkId)}/splits`,
+    'PATCH',
+    { splits },
+  ),
+);
+
+app.method('actualforge-payment-chain-suggestions', ({ id, candidates }) =>
+  request(
+    `/payment-chains/${encodeURIComponent(id)}/suggestions`,
+    'POST',
+    { candidates },
+  ),
+);
+
+app.method(
+  'actualforge-payment-chain-clarification',
+  ({ id, caseId, resolution }) =>
+    request(
+      `/payment-chains/${encodeURIComponent(id)}/clarifications/${encodeURIComponent(caseId)}`,
+      'PATCH',
+      resolution,
+    ),
 );
