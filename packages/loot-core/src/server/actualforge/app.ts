@@ -68,6 +68,19 @@ export type ActualForgeHandlers = {
   'actualforge-credit-card-analysis': (input: {
     candidates: Array<Record<string, unknown>>;
   }) => Promise<unknown>;
+  'actualforge-predictions-list': (input?: { status?: string }) => Promise<unknown>;
+  'actualforge-prediction-create': (input: Record<string, unknown>) => Promise<unknown>;
+  'actualforge-prediction-update': (input: {
+    id: string;
+    changes: Record<string, unknown>;
+  }) => Promise<unknown>;
+  'actualforge-prediction-remove': (input: { id: string }) => Promise<unknown>;
+  'actualforge-forecast-generate': (input: Record<string, unknown>) => Promise<unknown>;
+  'actualforge-clarifications-list': (input?: { status?: string }) => Promise<unknown>;
+  'actualforge-clarification-resolve': (input: {
+    id: string;
+    resolution: Record<string, unknown>;
+  }) => Promise<unknown>;
 };
 
 export const app = createApp<ActualForgeHandlers>();
@@ -253,4 +266,45 @@ app.method('actualforge-credit-card-remove', ({ accountId }) =>
 
 app.method('actualforge-credit-card-analysis', ({ candidates }) =>
   request('/credit-cards/analyze', 'POST', { candidates }),
+);
+
+
+app.method('actualforge-predictions-list', input =>
+  request(
+    input?.status
+      ? `/predictions?status=${encodeURIComponent(input.status)}`
+      : '/predictions',
+  ),
+);
+
+app.method('actualforge-prediction-create', input =>
+  request('/predictions', 'POST', input),
+);
+
+app.method('actualforge-prediction-update', ({ id, changes }) =>
+  request(`/predictions/${encodeURIComponent(id)}`, 'PATCH', changes),
+);
+
+app.method('actualforge-prediction-remove', ({ id }) =>
+  request(`/predictions/${encodeURIComponent(id)}`, 'DELETE'),
+);
+
+app.method('actualforge-forecast-generate', input =>
+  request('/forecast/generate', 'POST', input),
+);
+
+app.method('actualforge-clarifications-list', input =>
+  request(
+    input?.status
+      ? `/clarifications?status=${encodeURIComponent(input.status)}`
+      : '/clarifications',
+  ),
+);
+
+app.method('actualforge-clarification-resolve', ({ id, resolution }) =>
+  request(
+    `/clarifications/${encodeURIComponent(id)}`,
+    'PATCH',
+    resolution,
+  ),
 );
