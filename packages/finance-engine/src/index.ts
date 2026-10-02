@@ -1,9 +1,11 @@
+import { startAirtableSyncLoop } from './airtable.js';
 import { loadConfig } from './config.js';
 import { openDatabase } from './db.js';
 import { createFinanceEngineServer } from './server.js';
 
 const config = loadConfig();
 const db = openDatabase(config.databasePath);
+const airtableSync = startAirtableSyncLoop(db, config.airtable);
 const server = createFinanceEngineServer({ config, db });
 
 server.listen(config.port, config.host, () => {
@@ -13,6 +15,10 @@ server.listen(config.port, config.host, () => {
       message: 'finance-engine started',
       host: config.host,
       port: config.port,
+      airtableSyncEnabled: config.airtable.enabled,
+      airtableSyncIntervalMinutes: config.airtable.enabled
+        ? config.airtable.syncIntervalMinutes
+        : null,
     }),
   );
 });
@@ -24,6 +30,7 @@ function shutdown(signal: string): void {
     return;
   }
   shuttingDown = true;
+  airtableSync.stop();
 
   console.log(
     JSON.stringify({

@@ -1,12 +1,20 @@
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 
+export interface AirtableBridgeConfig {
+  enabled: boolean;
+  token: string | null;
+  baseId: string | null;
+  syncIntervalMinutes: number;
+}
+
 export interface FinanceEngineConfig {
   host: string;
   port: number;
   dataDir: string;
   databasePath: string;
   actualBaseUrl: string;
+  airtable: AirtableBridgeConfig;
 }
 
 function parsePort(value: string | undefined, fallback: number): number {
@@ -31,6 +39,81 @@ function parseHttpUrl(value: string): string {
   return url.toString().replace(/\/$/, '');
 }
 
+function parseBoolean(
+  value: string | undefined,
+  fallback: boolean,
+  name: string,
+): boolean {
+  if (value === undefined || value.trim() === '') {
+    return fallback;
+  }
+
+  switch (value.trim().toLowerCase()) {
+    case '1':
+    case 'true':
+    case 'yes':
+    case 'on':
+      return true;
+    case '0':
+    case 'false':
+    case 'no':
+    case 'off':
+      return false;
+    default:
+      throw new Error(`Invalid ${name}: ${value}`);
+  }
+}
+
+function parseNonNegativeInteger(
+  value: string | undefined,
+  fallback: number,
+  name: string,
+): number {
+  if (value === undefined || value.trim() === '') {
+    return fallback;
+  }
+
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < 0) {
+    throw new Error(`Invalid ${name}: ${value}`);
+  }
+  return parsed;
+}
+
+function loadAirtableConfig(env: NodeJS.ProcessEnv): AirtableBridgeConfig {
+  const enabled = parseBoolean(
+    env.AIRTABLE_SYNC_ENABLED,
+    false,
+    'AIRTABLE_SYNC_ENABLED',
+  );
+  const token = env.AIRTABLE_TOKEN?.trim() || null;
+  const baseId = env.AIRTABLE_BASE_ID?.trim() || null;
+  const syncIntervalMinutes = parseNonNegativeInteger(
+    env.AIRTABLE_SYNC_INTERVAL_MINUTES,
+    15,
+    'AIRTABLE_SYNC_INTERVAL_MINUTES',
+  );
+
+  if (baseId && !/^app[A-Za-z0-9]{14}$/.test(baseId)) {
+    throw new Error('AIRTABLE_BASE_ID must be a valid Airtable base ID');
+  }
+
+  if (enabled && !token) {
+    throw new Error('AIRTABLE_TOKEN is required when Airtable sync is enabled');
+  }
+
+  if (enabled && !baseId) {
+    throw new Error('AIRTABLE_BASE_ID is required when Airtable sync is enabled');
+  }
+
+  return {
+    enabled,
+    token,
+    baseId,
+    syncIntervalMinutes,
+  };
+}
+
 export function loadConfig(
   env: NodeJS.ProcessEnv = process.env,
   cwd = process.cwd(),
@@ -49,5 +132,6 @@ export function loadConfig(
     actualBaseUrl: parseHttpUrl(
       env.ACTUALFORGE_ACTUAL_URL ?? 'http://actualforge:5006',
     ),
+    airtable: loadAirtableConfig(env),
   };
 }

@@ -35,6 +35,10 @@ services:
       FINANCE_ENGINE_PORT: "5010"
       FINANCE_ENGINE_DATA_DIR: "/data"
       ACTUALFORGE_ACTUAL_URL: "http://actualforge:5006"
+      AIRTABLE_SYNC_ENABLED: "${AIRTABLE_SYNC_ENABLED:-false}"
+      AIRTABLE_TOKEN: "${AIRTABLE_TOKEN:-}"
+      AIRTABLE_BASE_ID: "${AIRTABLE_BASE_ID:-}"
+      AIRTABLE_SYNC_INTERVAL_MINUTES: "${AIRTABLE_SYNC_INTERVAL_MINUTES:-15}"
     volumes:
       - finance-engine-data:/data
     networks:
