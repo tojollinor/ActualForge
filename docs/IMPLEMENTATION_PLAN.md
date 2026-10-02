@@ -10,7 +10,8 @@ The project is implemented in eight large blocks.
 - ✅ Block 4 complete
 - ✅ Block 5 complete
 - ✅ Block 6 complete
-- ⏭️ Next: Block 7, Forecasts and clarification cases
+- 🧪 Block 7 implementation complete, verification pending
+- ⏭️ After verification: Block 8, Tests, documentation, and release
 
 1. **Repository + Actual analysis + baseline** ✅
    - Analyze current Actual structure.
@@ -37,7 +38,7 @@ The project is implemented in eight large blocks.
 6. **Transfers and credit cards** ✅
    - Add transfer matching and credit-card-specific interpretation.
 
-7. **Forecasts and clarification cases**
+7. **Forecasts and clarification cases** 🧪
    - Add prediction entries and workflows for uncertain/unmatched finance events.
 
 8. **Tests, documentation, and release**
