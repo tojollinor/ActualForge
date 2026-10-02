@@ -111,6 +111,7 @@ const DEFINITIONS: Record<ActualCoreDataset, CoreSyncDefinition> = {
       IsTransfer: boolean(row, 'isTransfer'),
       IsParent: boolean(row, 'isParent'),
       IsChild: boolean(row, 'isChild'),
+      CountInTotals: !boolean(row, 'isChild'),
       ParentId: text(row, 'parentId'),
       ScheduleId: text(row, 'scheduleId'),
       Deleted: boolean(row, 'deleted'),
