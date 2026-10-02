@@ -280,5 +280,53 @@ export function createActualForgeHandlers({
     forward(req, res, '/api/v1/credit-cards/analyze', 'POST'),
   );
 
+
+  handlers.get('/predictions', (req, res) => {
+    const status =
+      typeof req.query.status === 'string'
+        ? `?status=${encodeURIComponent(req.query.status)}`
+        : '';
+    return forward(req, res, `/api/v1/predictions${status}`, 'GET');
+  });
+  handlers.post('/predictions', (req, res) =>
+    forward(req, res, '/api/v1/predictions', 'POST'),
+  );
+  handlers.patch('/predictions/:predictionId', (req, res) =>
+    forward(
+      req,
+      res,
+      `/api/v1/predictions/${encodeURIComponent(req.params.predictionId)}`,
+      'PATCH',
+    ),
+  );
+  handlers.delete('/predictions/:predictionId', (req, res) =>
+    forward(
+      req,
+      res,
+      `/api/v1/predictions/${encodeURIComponent(req.params.predictionId)}`,
+      'DELETE',
+    ),
+  );
+
+  handlers.post('/forecast/generate', (req, res) =>
+    forward(req, res, '/api/v1/forecast/generate', 'POST'),
+  );
+
+  handlers.get('/clarifications', (req, res) => {
+    const status =
+      typeof req.query.status === 'string'
+        ? `?status=${encodeURIComponent(req.query.status)}`
+        : '';
+    return forward(req, res, `/api/v1/clarifications${status}`, 'GET');
+  });
+  handlers.patch('/clarifications/:caseId', (req, res) =>
+    forward(
+      req,
+      res,
+      `/api/v1/clarifications/${encodeURIComponent(req.params.caseId)}`,
+      'PATCH',
+    ),
+  );
+
   return handlers;
 }
