@@ -2,7 +2,10 @@ name: actualforge
 
 services:
   actualforge:
-    image: ghcr.io/tojollinor/actualforge:${ACTUALFORGE_TAG:-0.1.0}
+    image: ghcr.io/tojollinor/actualforge:${ACTUALFORGE_TAG:-dev}
+    build:
+      context: .
+      dockerfile: sync-server.Dockerfile
     restart: unless-stopped
     depends_on:
       finance-engine:
@@ -26,7 +29,10 @@ services:
       retries: 5
 
   finance-engine:
-    image: ghcr.io/tojollinor/actualforge-finance-engine:${FINANCE_ENGINE_TAG:-0.1.0}
+    image: ghcr.io/tojollinor/actualforge-finance-engine:${FINANCE_ENGINE_TAG:-dev}
+    build:
+      context: .
+      dockerfile: finance-engine.Dockerfile
     restart: unless-stopped
     expose:
       - "5010"
@@ -35,6 +41,10 @@ services:
       FINANCE_ENGINE_PORT: "5010"
       FINANCE_ENGINE_DATA_DIR: "/data"
       ACTUALFORGE_ACTUAL_URL: "http://actualforge:5006"
+      AIRTABLE_SYNC_ENABLED: "${AIRTABLE_SYNC_ENABLED:-false}"
+      AIRTABLE_TOKEN: "${AIRTABLE_TOKEN:-}"
+      AIRTABLE_BASE_ID: "${AIRTABLE_BASE_ID:-}"
+      AIRTABLE_SYNC_INTERVAL_MINUTES: "${AIRTABLE_SYNC_INTERVAL_MINUTES:-15}"
     volumes:
       - finance-engine-data:/data
     networks:
