@@ -2,6 +2,10 @@ import http from 'node:http';
 
 import type { FinanceEngineConfig } from './config.js';
 import {
+  listClarificationCases,
+  resolveClarification,
+} from './clarifications.js';
+import {
   confirmTransactionLink,
   ContractError,
   createContract,
@@ -32,6 +36,16 @@ import {
   type TransactionSplitInput,
 } from './payment-chains.js';
 import {
+  createPrediction,
+  generateForecast,
+  listPredictions,
+  removePrediction,
+  updatePrediction,
+  type ForecastRequest,
+  type PredictionInput,
+  type PredictionStatus,
+} from './forecast.js';
+import {
   analyzeCreditCards,
   confirmProposedTransferMatch,
   confirmTransferMatch,
@@ -48,7 +62,7 @@ import {
   type TransferMatchKind,
 } from './transfers.js';
 
-export const FINANCE_ENGINE_VERSION = '0.4.0';
+export const FINANCE_ENGINE_VERSION = '0.5.0';
 
 interface ServerDependencies {
   config: FinanceEngineConfig;
@@ -601,6 +615,134 @@ async function handleTransfersRequest(
   return true;
 }
 
+
+function matchForecastPath(pathname: string) {
+  const prediction = pathname.match(/^\/api\/v1\/predictions\/([^/]+)$/);
+  if (prediction) {
+    return {
+      kind: 'prediction' as const,
+      predictionId: decodeURIComponent(prediction[1]),
+    };
+  }
+
+  const clarification = pathname.match(/^\/api\/v1\/clarifications\/([^/]+)$/);
+  if (clarification) {
+    return {
+      kind: 'clarification' as const,
+      caseId: decodeURIComponent(clarification[1]),
+    };
+  }
+
+  if (pathname === '/api/v1/predictions') {
+    return { kind: 'predictions' as const };
+  }
+  if (pathname === '/api/v1/forecast/generate') {
+    return { kind: 'forecast' as const };
+  }
+  if (pathname === '/api/v1/clarifications') {
+    return { kind: 'clarifications' as const };
+  }
+
+  return null;
+}
+
+async function handleForecastRequest(
+  request: http.IncomingMessage,
+  response: http.ServerResponse,
+  db: FinanceDatabase,
+  url: URL,
+): Promise<boolean> {
+  const route = matchForecastPath(url.pathname);
+  if (!route) return false;
+  const method = request.method ?? 'GET';
+
+  if (route.kind === 'predictions') {
+    if (method === 'GET') {
+      const status = url.searchParams.get('status') as PredictionStatus | null;
+      sendJson(response, 200, {
+        predictions: listPredictions(db, status),
+      });
+      return true;
+    }
+
+    if (method === 'POST') {
+      const body = (await readJson(request)) as PredictionInput;
+      sendJson(response, 201, {
+        prediction: createPrediction(db, body),
+      });
+      return true;
+    }
+  }
+
+  if (route.kind === 'prediction') {
+    if (method === 'PATCH') {
+      const body = (await readJson(request)) as Partial<PredictionInput>;
+      sendJson(response, 200, {
+        prediction: updatePrediction(db, route.predictionId, body),
+      });
+      return true;
+    }
+
+    if (method === 'DELETE') {
+      removePrediction(db, route.predictionId);
+      sendJson(response, 200, { ok: true });
+      return true;
+    }
+  }
+
+  if (route.kind === 'forecast' && method === 'POST') {
+    const body = (await readJson(request)) as ForecastRequest;
+    sendJson(response, 200, generateForecast(db, body));
+    return true;
+  }
+
+  if (route.kind === 'clarifications') {
+    if (method === 'GET') {
+      const status = url.searchParams.get('status') as
+        | 'open'
+        | 'resolved'
+        | 'dismissed'
+        | null;
+      sendJson(response, 200, {
+        clarifications: listClarificationCases(db, status),
+      });
+      return true;
+    }
+  }
+
+  if (route.kind === 'clarification' && method === 'PATCH') {
+    const body = (await readJson(request)) as
+      | { action: 'dismiss' }
+      | {
+          action: 'confirm';
+          role?: PaymentRole;
+          amountMinor?: number;
+          date?: string;
+          splits?: TransactionSplitInput[];
+          transferKind?: TransferMatchKind;
+        };
+    sendJson(response, 200, {
+      clarifications: resolveClarification(db, route.caseId, body),
+    });
+    return true;
+  }
+
+  response.setHeader(
+    'allow',
+    route.kind === 'predictions'
+      ? 'GET, POST'
+      : route.kind === 'prediction'
+        ? 'PATCH, DELETE'
+        : route.kind === 'forecast'
+          ? 'POST'
+          : route.kind === 'clarifications'
+            ? 'GET'
+            : 'PATCH',
+  );
+  sendJson(response, 405, { error: 'method_not_allowed' });
+  return true;
+}
+
 export function createFinanceEngineServer({
   config,
   db,
@@ -618,6 +760,10 @@ export function createFinanceEngineServer({
       }
 
       if (await handleTransfersRequest(request, response, db, url)) {
+        return;
+      }
+
+      if (await handleForecastRequest(request, response, db, url)) {
         return;
       }
 
@@ -679,8 +825,9 @@ export function createFinanceEngineServer({
             transactionSplits: 'active',
             transferMatches: 'active',
             creditCards: 'active',
-            clarificationCases: 'schema-ready',
-            predictions: 'schema-ready',
+            clarificationCases: 'active',
+            predictions: 'active',
+            forecasts: 'active',
             merchantMappings: 'schema-ready',
             recognitionRules: 'schema-ready',
           },
