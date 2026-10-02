@@ -1,0 +1,20 @@
+{
+  "project": "ActualForge",
+  "version": "0.1.0",
+  "tag": "v0.1.0",
+  "released": "2026-10-02",
+  "actualBudget": {
+    "release": "v26.9.0",
+    "commit": "59fe126f637d858c061e1eeedbef5436c8f2225a"
+  },
+  "components": {
+    "financeEngineVersion": "0.5.0",
+    "financeEngineSchemaVersion": 5
+  },
+  "images": {
+    "actualforge": "ghcr.io/tojollinor/actualforge:0.1.0",
+    "financeEngine": "ghcr.io/tojollinor/actualforge-finance-engine:0.1.0"
+  },
+  "platforms": ["linux/amd64"],
+  "releaseNotes": "docs/releases/v0.1.0.md"
+}
