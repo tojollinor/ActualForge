@@ -26,7 +26,7 @@ The project keeps a single user-facing web/PWA experience based on Actual's UI.
 
 ActualForge includes a separate internal `finance-engine` service for its own finance interpretation data and logic. The engine uses its own SQLite persistence, keeps Actual transactions authoritative, and is not exposed as a second end-user interface.
 
-The existing Actual web/PWA now contains an **ActualForge** route in desktop and mobile navigation. Browser requests reach the finance engine only through fixed same-origin endpoints on the sync-server.
+The existing Actual web/PWA contains an **ActualForge** route in desktop and mobile navigation. Browser requests reach the finance engine only through fixed same-origin endpoints on the sync-server.
 
 See:
 - [docs/ACTUALFORGE_ARCHITECTURE.md](./docs/ACTUALFORGE_ARCHITECTURE.md)
@@ -36,7 +36,7 @@ See:
 
 ## Current release
 
-**ActualForge 0.1.1** adds the optional Airtable bridge while keeping Actual and the finance-engine authoritative. It remains based on Actual Budget **v26.9.0** at commit `59fe126f637d858c061e1eeedbef5436c8f2225a`.
+**ActualForge 0.1.2** extends the optional Airtable bridge with explicit export of Actual accounts, transactions, categories and schedules from the opened budget. Actual remains authoritative and Airtable writeback stays disabled. The release remains based on Actual Budget **v26.9.0** at commit `59fe126f637d858c061e1eeedbef5436c8f2225a`.
 
 For a published container deployment:
 
@@ -48,8 +48,8 @@ docker compose -f compose.release.yaml up -d
 
 Published images:
 
-- `ghcr.io/tojollinor/actualforge:0.1.1`
-- `ghcr.io/tojollinor/actualforge-finance-engine:0.1.1`
+- `ghcr.io/tojollinor/actualforge:0.1.2`
+- `ghcr.io/tojollinor/actualforge-finance-engine:0.1.2`
 
 See [docs/OPERATIONS.md](./docs/OPERATIONS.md), [CHANGELOG.md](./CHANGELOG.md), and [ACTUALFORGE_RELEASE.json](./ACTUALFORGE_RELEASE.json).
 
