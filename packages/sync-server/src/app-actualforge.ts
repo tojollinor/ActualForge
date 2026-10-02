@@ -328,5 +328,13 @@ export function createActualForgeHandlers({
     ),
   );
 
+  handlers.get('/airtable/status', (req, res) =>
+    forward(req, res, '/api/v1/airtable/status', 'GET'),
+  );
+
+  handlers.post('/airtable/core-batch', (req, res) =>
+    forward(req, res, '/api/v1/airtable/core-batch', 'POST'),
+  );
+
   return handlers;
 }
