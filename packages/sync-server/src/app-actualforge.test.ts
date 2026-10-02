@@ -182,6 +182,53 @@ describe('ActualForge finance-engine bridge', () => {
     });
   });
 
+  it('forwards forecast generation only to the fixed forecast endpoint', async () => {
+    let method = '';
+    let requestedUrl = '';
+    let payload = '';
+
+    const fetchImpl: typeof fetch = async (input, init) => {
+      requestedUrl = input.toString();
+      method = init?.method ?? '';
+      payload = String(init?.body ?? '');
+      return new Response(JSON.stringify({ entries: [], accounts: [] }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    };
+
+    const response = await request(
+      createApp('http://finance-engine:5010', fetchImpl),
+    )
+      .post('/actualforge/api/forecast/generate')
+      .send({
+        startDate: '2026-10-02',
+        endDate: '2026-10-31',
+        accounts: [
+          {
+            accountId: 'checking',
+            balanceMinor: 100000,
+          },
+        ],
+      });
+
+    expect(response.statusCode).toBe(200);
+    expect(method).toBe('POST');
+    expect(requestedUrl).toBe(
+      'http://finance-engine:5010/api/v1/forecast/generate',
+    );
+    expect(JSON.parse(payload)).toEqual({
+      startDate: '2026-10-02',
+      endDate: '2026-10-31',
+      accounts: [
+        {
+          accountId: 'checking',
+          balanceMinor: 100000,
+        },
+      ],
+    });
+  });
+
   it('does not behave as an open proxy', async () => {
     const fetchImpl: typeof fetch = async () => {
       throw new Error('fetch should not be called');
