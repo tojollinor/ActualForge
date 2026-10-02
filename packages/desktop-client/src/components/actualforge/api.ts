@@ -23,6 +23,36 @@ export interface FinanceEngineStatus {
     transactionStorage: string;
     automaticTransactionMutation: boolean;
   };
+  airtableIntegration?: {
+    enabled: boolean;
+    configured: boolean;
+    syncIntervalMinutes: number;
+    actualCore: ActualCoreAirtableStatus | null;
+  };
+}
+
+export interface ActualCoreAirtableStatus {
+  enabled: boolean;
+  configured: boolean;
+  pendingBatches: number;
+  processing: boolean;
+  acceptedRecords: number;
+  syncedRecords: number;
+  failedRecords: number;
+  lastSuccessAt: string | null;
+  lastErrorAt: string | null;
+  lastError: string | null;
+}
+
+export interface ActualCoreSyncResult {
+  accepted: boolean;
+  counts: {
+    accounts: number;
+    categories: number;
+    schedules: number;
+    transactions: number;
+  };
+  status: ActualCoreAirtableStatus;
 }
 
 export interface FinanceEngineCapabilities {
@@ -137,6 +167,14 @@ export interface ContractSuggestion {
 
 export async function loadActualForgeOverview(): Promise<ActualForgeOverview> {
   return (await send('actualforge-overview')) as ActualForgeOverview;
+}
+
+export async function loadAirtableStatus(): Promise<ActualCoreAirtableStatus> {
+  return (await send('actualforge-airtable-status')) as ActualCoreAirtableStatus;
+}
+
+export async function syncActualCoreToAirtable(): Promise<ActualCoreSyncResult> {
+  return (await send('actualforge-airtable-sync')) as ActualCoreSyncResult;
 }
 
 export async function listContracts(): Promise<Contract[]> {
