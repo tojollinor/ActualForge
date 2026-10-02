@@ -1,6 +1,6 @@
 # Docker layout
 
-ActualForge uses two containers in the initial application stack.
+ActualForge uses two containers.
 
 ```text
 browser
@@ -14,60 +14,51 @@ actualforge:5006
                               finance-engine-data
 ```
 
-## Services
+## Development stack
 
-### actualforge
-
-The `actualforge` service is built from `sync-server.Dockerfile` and exposes the application on host port `5006` by default.
-
-Persistent data:
-
-```text
-actualforge-data -> /data
-```
-
-### finance-engine
-
-The `finance-engine` service is built from `finance-engine.Dockerfile`.
-
-Port `5010` is exposed only inside the Docker network. It is not published on the host by the default Compose configuration.
-
-Persistent data:
-
-```text
-finance-engine-data -> /data
-```
-
-## Start locally
+`compose.yaml` is the source/development stack. Both images include local build definitions.
 
 ```bash
 cp .env.example .env
 docker compose up --build -d
 ```
 
-Open ActualForge at:
+Open `http://localhost:5006`.
 
-```text
-http://localhost:5006
-```
+The application server and finance engine both have health checks. Port 5010 stays internal.
 
-Check container state with:
+## Release stack
+
+`compose.release.yaml` contains no build definitions. It pulls pinned GHCR images.
 
 ```bash
-docker compose ps
+cp .env.release.example .env
+docker compose -f compose.release.yaml pull
+docker compose -f compose.release.yaml up -d
 ```
 
-The finance engine health check is automatic.
+The first release defaults to version `0.1.0`.
 
-## Updates and Komodo
+## Persistent data
 
-The stack uses stable service names and named volumes so it can later be managed by Komodo without changing the persistence model.
+```text
+actualforge-data      -> /data
+finance-engine-data   -> /data
+```
 
-Release images are intended for GHCR:
+Back up both volumes together before an upgrade. Container recreation keeps named volumes. Do not use `docker compose down -v` in production unless the data is intentionally being deleted.
 
-- `ghcr.io/tojollinor/actualforge:<version>`
-- `ghcr.io/tojollinor/actualforge-finance-engine:<version>`
+## Health checks
 
-The current `dev` tag is only the local/pre-release default.
+```bash
+docker compose -f compose.release.yaml ps
+curl --fail http://127.0.0.1:5006/health
+```
 
-Upstream Actual updates remain manual and are independent from container restart/update behavior.
+Both services should become healthy.
+
+## Komodo
+
+Use `compose.release.yaml` for published deployments. Keep the named volumes unchanged and change the explicit version only when deliberately upgrading.
+
+See [OPERATIONS.md](./OPERATIONS.md).

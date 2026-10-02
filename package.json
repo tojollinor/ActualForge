@@ -68,7 +68,9 @@
     "prepare": "husky",
     "start:finance-engine": "yarn workspace @actualforge/finance-engine start",
     "build:finance-engine": "yarn workspace @actualforge/finance-engine build",
-    "test:finance-engine": "yarn workspace @actualforge/finance-engine test"
+    "test:finance-engine": "yarn workspace @actualforge/finance-engine test",
+    "verify:actualforge": "bash scripts/verify-actualforge.sh",
+    "validate:actualforge-release": "node scripts/validate-actualforge-release.mjs"
   },
   "devDependencies": {
     "@monorepo-utils/workspaces-to-typescript-project-references": "^2.11.0",

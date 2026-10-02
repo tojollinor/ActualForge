@@ -33,6 +33,25 @@ See:
 - [docs/FINANCE_ENGINE.md](./docs/FINANCE_ENGINE.md)
 - [docs/DOCKER.md](./docs/DOCKER.md)
 
+## Current release
+
+**ActualForge 0.1.0** is the first independent ActualForge release. It is based on Actual Budget **v26.9.0** at commit `59fe126f637d858c061e1eeedbef5436c8f2225a`.
+
+For a published container deployment:
+
+```bash
+cp .env.release.example .env
+docker compose -f compose.release.yaml pull
+docker compose -f compose.release.yaml up -d
+```
+
+Published images:
+
+- `ghcr.io/tojollinor/actualforge:0.1.0`
+- `ghcr.io/tojollinor/actualforge-finance-engine:0.1.0`
+
+See [docs/OPERATIONS.md](./docs/OPERATIONS.md), [CHANGELOG.md](./CHANGELOG.md), and [ACTUALFORGE_RELEASE.json](./ACTUALFORGE_RELEASE.json).
+
 ## Development
 
 Actual v26.9.0 requires Node.js 22+ and Yarn 4.17.1. ActualForge's Docker builds use Node 24.

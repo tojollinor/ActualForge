@@ -11,7 +11,7 @@ The project is implemented in eight large blocks.
 - ✅ Block 5 complete
 - ✅ Block 6 complete
 - ✅ Block 7 complete
-- ⏭️ Next: Block 8, Tests, documentation, and release
+- ✅ Block 8 complete
 
 1. **Repository + Actual analysis + baseline** ✅
    - Analyze current Actual structure.
@@ -41,7 +41,7 @@ The project is implemented in eight large blocks.
 7. **Forecasts and clarification cases** ✅
    - Add prediction entries and workflows for uncertain/unmatched finance events.
 
-8. **Tests, documentation, and release**
+8. **Tests, documentation, and release** ✅
    - Complete regression/integration coverage, operating documentation, packaging, and the first ActualForge release.
 
 After each large block, work stops for review before the next block begins.

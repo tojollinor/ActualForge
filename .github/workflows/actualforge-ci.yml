@@ -1,0 +1,42 @@
+name: ActualForge CI
+
+on:
+  push:
+    branches:
+      - main
+      - 'actualforge/**'
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: actualforge-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'yarn'
+      - run: corepack enable
+      - name: Install dependencies
+        run: yarn install --immutable
+      - name: Verify ActualForge
+        run: yarn verify:actualforge
+      - name: Build and start containers
+        run: docker compose -f compose.yaml up --build -d --wait
+      - name: Smoke-test running stack
+        run: bash scripts/smoke-actualforge.sh
+      - name: Show container logs on failure
+        if: failure()
+        run: docker compose -f compose.yaml logs --no-color --tail=300
+      - name: Stop test stack
+        if: always()
+        run: docker compose -f compose.yaml down -v

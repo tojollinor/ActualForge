@@ -7,6 +7,9 @@ services:
       context: .
       dockerfile: sync-server.Dockerfile
     restart: unless-stopped
+    depends_on:
+      finance-engine:
+        condition: service_healthy
     ports:
       - "${ACTUALFORGE_PORT:-5006}:5006"
     environment:
@@ -18,6 +21,12 @@ services:
       - actualforge-data:/data
     networks:
       - actualforge-internal
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:5006/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 5
 
   finance-engine:
     image: ghcr.io/tojollinor/actualforge-finance-engine:${FINANCE_ENGINE_TAG:-dev}
@@ -37,13 +46,7 @@ services:
     networks:
       - actualforge-internal
     healthcheck:
-      test:
-        [
-          "CMD",
-          "node",
-          "-e",
-          "fetch('http://127.0.0.1:5010/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"
-        ]
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:5010/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
       interval: 30s
       timeout: 5s
       start_period: 5s

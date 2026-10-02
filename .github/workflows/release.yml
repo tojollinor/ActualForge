@@ -1,0 +1,176 @@
+name: ActualForge release
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'ACTUALFORGE_RELEASE.json'
+      - 'compose.release.yaml'
+      - '.env.release.example'
+      - 'docs/releases/**'
+      - '.github/workflows/release.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  packages: write
+
+concurrency:
+  group: actualforge-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'yarn'
+      - run: corepack enable
+
+      - name: Read release metadata
+        id: meta
+        shell: bash
+        run: |
+          VERSION="$(node -p "JSON.parse(require('fs').readFileSync('ACTUALFORGE_RELEASE.json','utf8')).version")"
+          TAG="$(node -p "JSON.parse(require('fs').readFileSync('ACTUALFORGE_RELEASE.json','utf8')).tag")"
+          NOTES="$(node -p "JSON.parse(require('fs').readFileSync('ACTUALFORGE_RELEASE.json','utf8')).releaseNotes")"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "notes=$NOTES" >> "$GITHUB_OUTPUT"
+
+      - name: Check whether release already exists
+        id: existing
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.meta.outputs.tag }}
+        run: |
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "published=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "published=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install dependencies
+        if: steps.existing.outputs.published != 'true'
+        run: yarn install --immutable
+      - name: Verify source release
+        if: steps.existing.outputs.published != 'true'
+        run: yarn verify:actualforge
+      - name: Build and smoke-test source stack
+        if: steps.existing.outputs.published != 'true'
+        run: |
+          docker compose -f compose.yaml up --build -d --wait
+          bash scripts/smoke-actualforge.sh
+      - name: Stop source stack
+        if: always() && steps.existing.outputs.published != 'true'
+        run: docker compose -f compose.yaml down -v
+
+      - name: Log in to GHCR
+        if: steps.existing.outputs.published != 'true'
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Set up Docker Buildx
+        if: steps.existing.outputs.published != 'true'
+        uses: docker/setup-buildx-action@v4
+
+      - name: Publish ActualForge image
+        if: steps.existing.outputs.published != 'true'
+        id: actualforge-image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: sync-server.Dockerfile
+          platforms: linux/amd64
+          push: true
+          provenance: true
+          sbom: true
+          tags: |
+            ghcr.io/tojollinor/actualforge:${{ steps.meta.outputs.version }}
+            ghcr.io/tojollinor/actualforge:latest
+          labels: |
+            org.opencontainers.image.title=ActualForge
+            org.opencontainers.image.version=${{ steps.meta.outputs.version }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.source=https://github.com/tojollinor/ActualForge
+          cache-from: type=gha,scope=actualforge
+          cache-to: type=gha,mode=max,scope=actualforge
+
+      - name: Publish finance-engine image
+        if: steps.existing.outputs.published != 'true'
+        id: finance-image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: finance-engine.Dockerfile
+          platforms: linux/amd64
+          push: true
+          provenance: true
+          sbom: true
+          tags: |
+            ghcr.io/tojollinor/actualforge-finance-engine:${{ steps.meta.outputs.version }}
+            ghcr.io/tojollinor/actualforge-finance-engine:latest
+          labels: |
+            org.opencontainers.image.title=ActualForge finance-engine
+            org.opencontainers.image.version=${{ steps.meta.outputs.version }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.source=https://github.com/tojollinor/ActualForge
+          cache-from: type=gha,scope=finance-engine
+          cache-to: type=gha,mode=max,scope=finance-engine
+
+      - name: Package deployment files
+        if: steps.existing.outputs.published != 'true'
+        env:
+          VERSION: ${{ steps.meta.outputs.version }}
+          ACTUALFORGE_DIGEST: ${{ steps.actualforge-image.outputs.digest }}
+          FINANCE_ENGINE_DIGEST: ${{ steps.finance-image.outputs.digest }}
+        run: |
+          mkdir -p dist/release
+          cp compose.release.yaml .env.release.example ACTUALFORGE_RELEASE.json LICENSE.txt README.md docs/OPERATIONS.md dist/release/
+          tar -czf "ActualForge-v$VERSION-deployment.tar.gz" -C dist/release .
+          sha256sum "ActualForge-v$VERSION-deployment.tar.gz" > "ActualForge-v$VERSION-deployment.tar.gz.sha256"
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const release = JSON.parse(fs.readFileSync('ACTUALFORGE_RELEASE.json', 'utf8'));
+          const output = {
+            version: release.version,
+            tag: release.tag,
+            sourceCommit: process.env.GITHUB_SHA,
+            images: {
+              actualforge: { name: release.images.actualforge, digest: process.env.ACTUALFORGE_DIGEST },
+              financeEngine: { name: release.images.financeEngine, digest: process.env.FINANCE_ENGINE_DIGEST },
+            },
+          };
+          fs.writeFileSync('ActualForge-image-digests.json', JSON.stringify(output, null, 2) + '\n');
+          NODE
+          sha256sum ActualForge-image-digests.json > ActualForge-image-digests.json.sha256
+
+      - name: Create release tag
+        if: steps.existing.outputs.published != 'true'
+        env:
+          TAG: ${{ steps.meta.outputs.tag }}
+        run: |
+          if ! git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git tag -a "$TAG" "$GITHUB_SHA" -m "ActualForge $TAG"
+            git push origin "$TAG"
+          fi
+
+      - name: Create GitHub Release
+        if: steps.existing.outputs.published != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.meta.outputs.tag }}
+          VERSION: ${{ steps.meta.outputs.version }}
+          NOTES: ${{ steps.meta.outputs.notes }}
+        run: |
+          gh release create "$TAG"             "ActualForge-v$VERSION-deployment.tar.gz"             "ActualForge-v$VERSION-deployment.tar.gz.sha256"             "ActualForge-image-digests.json"             "ActualForge-image-digests.json.sha256"             --repo "$GITHUB_REPOSITORY"             --title "ActualForge $VERSION"             --notes-file "$NOTES"
