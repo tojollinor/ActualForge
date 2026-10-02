@@ -43,8 +43,9 @@ Endpoints:
 - `GET /api/v1/status` - engine and integration status
 - `GET /api/v1/capabilities` - domain capabilities currently represented by the schema
 
-Block 4 and Block 5 add authenticated domain endpoints for contracts and payment
-chains. They create only ActualForge metadata and references; they do not mutate
+Blocks 4 through 7 add authenticated domain endpoints for contracts, payment
+chains, transfers, credit cards, predictions, forecasts, and clarification
+cases. They create only ActualForge metadata and references; they do not mutate
 Actual transactions.
 
 The browser never calls these endpoints directly. The existing Actual worker and
@@ -62,7 +63,7 @@ ACTUALFORGE_ACTUAL_URL=http://actualforge:5006
 Direct SQLite access to Actual is deliberately avoided. Later blocks will integrate through explicit application/API seams.
 
 The browser/PWA does not connect to port 5010 directly. The sync-server exposes
-fixed routes for engine status, contracts, and payment chains under
+fixed routes for engine status and supported ActualForge domains under
 `/actualforge/api/*`. Every route is explicitly declared and requires a valid
 Actual session token. This is deliberately not an open proxy.
 
