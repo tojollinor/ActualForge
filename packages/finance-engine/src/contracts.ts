@@ -501,23 +501,24 @@ export function confirmTransactionLink(
   if (existing) {
     db.prepare(
       `UPDATE transaction_links
-       SET amount_minor = ?, confidence = ?, status = 'confirmed',
+       SET amount_minor = ?, occurred_on = ?, confidence = ?, status = 'confirmed',
            metadata_json = ?, updated_at = ?
        WHERE id = ?`,
-    ).run(amountMinor, input.confidence ?? 1, metadataJson, now, id);
+    ).run(amountMinor, date, input.confidence ?? 1, metadataJson, now, id);
   } else {
     db.prepare(
       `INSERT INTO transaction_links (
         id, actual_transaction_id, contract_id, payment_chain_id,
-        link_type, amount_minor, confidence, status, metadata_json,
+        link_type, amount_minor, occurred_on, confidence, status, metadata_json,
         created_at, updated_at
-      ) VALUES (?, ?, ?, NULL, ?, ?, ?, 'confirmed', ?, ?, ?)`,
+      ) VALUES (?, ?, ?, NULL, ?, ?, ?, ?, 'confirmed', ?, ?, ?)`,
     ).run(
       id,
       transactionId,
       contractId,
       linkType,
       amountMinor,
+      date,
       input.confidence ?? 1,
       metadataJson,
       now,
