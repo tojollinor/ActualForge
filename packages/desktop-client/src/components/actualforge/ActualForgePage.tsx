@@ -12,6 +12,9 @@ import { useNavigate } from '#hooks/useNavigate';
 
 import {
   loadActualForgeOverview,
+  loadAirtableStatus,
+  syncActualCoreToAirtable,
+  type ActualCoreAirtableStatus,
   type ActualForgeOverview,
 } from './api';
 
@@ -60,6 +63,10 @@ export function ActualForgePage() {
   const [overview, setOverview] = useState<OverviewState>({
     status: 'loading',
   });
+  const [airtableStatus, setAirtableStatus] =
+    useState<ActualCoreAirtableStatus | null>(null);
+  const [airtableSyncing, setAirtableSyncing] = useState(false);
+  const [airtableMessage, setAirtableMessage] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     setOverview({ status: 'loading' });
@@ -67,6 +74,9 @@ export function ActualForgePage() {
     try {
       const data = await loadActualForgeOverview();
       setOverview({ status: 'ready', data });
+      if (data.status.airtableIntegration?.actualCore) {
+        setAirtableStatus(data.status.airtableIntegration.actualCore);
+      }
     } catch (error) {
       setOverview({
         status: 'error',
@@ -78,6 +88,41 @@ export function ActualForgePage() {
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  const syncAirtable = useCallback(async () => {
+    setAirtableSyncing(true);
+    setAirtableMessage(null);
+    try {
+      const result = await syncActualCoreToAirtable();
+      setAirtableStatus(result.status);
+      setAirtableMessage(
+        `${result.counts.accounts} Konten · ${result.counts.transactions} Buchungen · ${result.counts.categories} Kategorien · ${result.counts.schedules} Zeitpläne übergeben`,
+      );
+    } catch (error) {
+      setAirtableMessage(
+        error instanceof Error ? error.message : 'Airtable-Synchronisation fehlgeschlagen',
+      );
+    } finally {
+      setAirtableSyncing(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (
+      !airtableStatus ||
+      (!airtableStatus.processing && airtableStatus.pendingBatches === 0)
+    ) {
+      return;
+    }
+
+    const timer = setInterval(() => {
+      void loadAirtableStatus()
+        .then(setAirtableStatus)
+        .catch(() => undefined);
+    }, 2000);
+
+    return () => clearInterval(timer);
+  }, [airtableStatus]);
 
   return (
     <Page header="ActualForge">
@@ -126,6 +171,14 @@ export function ActualForgePage() {
             >
               Prognose & Klärfälle
             </Button>
+            {overview.status === 'ready' &&
+              overview.data.status.airtableIntegration?.enabled && (
+                <Button variant="normal" onPress={() => void syncAirtable()}>
+                  {airtableSyncing
+                    ? 'Airtable wird vorbereitet…'
+                    : 'Airtable synchronisieren'}
+                </Button>
+              )}
           </View>
         </View>
 
@@ -195,7 +248,37 @@ export function ActualForgePage() {
                     : t('Automatic mutation disabled')
                 }
               />
+              {overview.data.status.airtableIntegration && (
+                <StatusCard
+                  title="Airtable"
+                  value={
+                    !overview.data.status.airtableIntegration.configured
+                      ? 'Nicht konfiguriert'
+                      : airtableStatus?.processing ||
+                          (airtableStatus?.pendingBatches ?? 0) > 0
+                        ? 'Synchronisiert…'
+                        : airtableStatus?.lastError
+                          ? 'Fehler'
+                          : 'Bereit'
+                  }
+                  description={
+                    airtableStatus?.processing ||
+                    (airtableStatus?.pendingBatches ?? 0) > 0
+                      ? `${airtableStatus?.pendingBatches ?? 0} Pakete in der Warteschlange`
+                      : airtableStatus?.lastError ??
+                        `${airtableStatus?.syncedRecords ?? 0} Datensätze übertragen`
+                  }
+                />
+              )}
             </View>
+
+            {airtableMessage && (
+              <Card style={{ margin: 0 }}>
+                <View style={{ padding: 12 }}>
+                  <Text>{airtableMessage}</Text>
+                </View>
+              </Card>
+            )}
 
             <Card style={{ margin: 0 }}>
               <View style={{ padding: 16, gap: 12 }}>
