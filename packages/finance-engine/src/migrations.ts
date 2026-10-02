@@ -258,6 +258,29 @@ const migrations: Migration[] = [
     `,
   },
 
+  {
+    version: 5,
+    name: 'forecasts-and-clarifications',
+    sql: `
+      ALTER TABLE prediction_entries ADD COLUMN title TEXT;
+      ALTER TABLE prediction_entries ADD COLUMN account_id TEXT;
+      ALTER TABLE prediction_entries ADD COLUMN source_kind TEXT NOT NULL DEFAULT 'manual';
+      ALTER TABLE prediction_entries ADD COLUMN source_ref TEXT;
+      ALTER TABLE prediction_entries ADD COLUMN confidence REAL;
+      ALTER TABLE prediction_entries ADD COLUMN notes TEXT;
+
+      CREATE INDEX IF NOT EXISTS idx_prediction_entries_account_date
+        ON prediction_entries(account_id, expected_date);
+      CREATE INDEX IF NOT EXISTS idx_prediction_entries_status_date
+        ON prediction_entries(status, expected_date);
+      CREATE INDEX IF NOT EXISTS idx_prediction_entries_source
+        ON prediction_entries(source_kind, source_ref);
+
+      CREATE INDEX IF NOT EXISTS idx_clarification_cases_kind_status
+        ON clarification_cases(kind, status);
+    `,
+  },
+
 ];
 
 export function runMigrations(db: Database.Database): void {
