@@ -665,6 +665,7 @@ export interface ForecastEntry {
   sourceRef: string | null;
   confidence: number;
   explanation: string;
+  countsAsIncomeExpense: boolean;
   projectedBalanceMinor?: number;
 }
 
