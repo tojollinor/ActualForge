@@ -229,6 +229,41 @@ describe('ActualForge finance-engine bridge', () => {
     });
   });
 
+  it('forwards authenticated Actual core Airtable batches to the fixed endpoint', async () => {
+    let method = '';
+    let requestedUrl = '';
+    let payload = '';
+
+    const fetchImpl: typeof fetch = async (input, init) => {
+      requestedUrl = input.toString();
+      method = init?.method ?? '';
+      payload = String(init?.body ?? '');
+      return new Response(JSON.stringify({ accepted: true }), {
+        status: 202,
+        headers: { 'content-type': 'application/json' },
+      });
+    };
+
+    const response = await request(
+      createApp('http://finance-engine:5010', fetchImpl),
+    )
+      .post('/actualforge/api/airtable/core-batch')
+      .send({
+        dataset: 'accounts',
+        records: [{ id: 'acct-1', name: 'Checking' }],
+      });
+
+    expect(response.statusCode).toBe(202);
+    expect(method).toBe('POST');
+    expect(requestedUrl).toBe(
+      'http://finance-engine:5010/api/v1/airtable/core-batch',
+    );
+    expect(JSON.parse(payload)).toEqual({
+      dataset: 'accounts',
+      records: [{ id: 'acct-1', name: 'Checking' }],
+    });
+  });
+
   it('does not behave as an open proxy', async () => {
     const fetchImpl: typeof fetch = async () => {
       throw new Error('fetch should not be called');

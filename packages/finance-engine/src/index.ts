@@ -1,3 +1,4 @@
+import { createActualCoreAirtableQueue } from './actual-core-airtable.js';
 import { startAirtableSyncLoop } from './airtable.js';
 import { loadConfig } from './config.js';
 import { openDatabase } from './db.js';
@@ -6,7 +7,8 @@ import { createFinanceEngineServer } from './server.js';
 const config = loadConfig();
 const db = openDatabase(config.databasePath);
 const airtableSync = startAirtableSyncLoop(db, config.airtable);
-const server = createFinanceEngineServer({ config, db });
+const actualCoreAirtable = createActualCoreAirtableQueue(config.airtable);
+const server = createFinanceEngineServer({ config, db, actualCoreAirtable });
 
 server.listen(config.port, config.host, () => {
   console.log(
