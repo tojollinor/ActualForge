@@ -837,7 +837,6 @@ export function createFinanceEngineServer({
       }
 
       if (method !== 'GET') {
-      if (method !== 'GET') {
         response.setHeader('allow', 'GET');
         sendJson(response, 405, { error: 'method_not_allowed' });
         return;
