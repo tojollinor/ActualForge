@@ -491,7 +491,8 @@ export function ForecastPage() {
   };
 
   const manualPredictions = predictions.filter(
-    prediction => prediction.sourceKind === 'manual',
+    prediction =>
+      prediction.sourceKind === 'manual' && prediction.status === 'planned',
   );
 
   const accountOptions: Array<readonly [string, string]> = [
@@ -650,6 +651,7 @@ export function ForecastPage() {
                       {SOURCE_LABELS[entry.sourceKind] ?? entry.sourceKind} ·{' '}
                       {Math.round(entry.confidence * 100)} % ·{' '}
                       {entry.explanation}
+                      {!entry.countsAsIncomeExpense ? ' · wirtschaftlich neutral' : ''}
                     </Text>
                     {entry.projectedBalanceMinor != null && (
                       <Text style={{ opacity: 0.7 }}>
