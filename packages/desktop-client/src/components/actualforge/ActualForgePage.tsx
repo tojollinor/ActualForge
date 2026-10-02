@@ -29,6 +29,7 @@ const capabilityLabels: Record<string, string> = {
   creditCards: 'Credit cards',
   clarificationCases: 'Clarification cases',
   predictions: 'Predictions',
+  forecasts: 'Forecasts',
   merchantMappings: 'Merchant mappings',
   recognitionRules: 'Recognition rules',
 };
@@ -118,6 +119,12 @@ export function ActualForgePage() {
               onPress={() => void navigate('/actualforge/transfers')}
             >
               Umbuchungen & Kreditkarten
+            </Button>
+            <Button
+              variant="normal"
+              onPress={() => void navigate('/actualforge/forecast')}
+            >
+              Prognose & Klärfälle
             </Button>
           </View>
         </View>
