@@ -97,21 +97,24 @@ export function refreshContractAmountClarifications(db: FinanceDatabase) {
   for (const contract of contracts) {
     const observations = db
       .prepare(
-        `SELECT actual_transaction_id, effective_date, amount_minor
-         FROM contract_price_history
+        `SELECT actual_transaction_id, occurred_on, amount_minor, created_at
+         FROM transaction_links
          WHERE contract_id = ?
-         ORDER BY effective_date DESC, created_at DESC
+           AND status = 'confirmed'
+           AND amount_minor IS NOT NULL
+         ORDER BY COALESCE(occurred_on, created_at) DESC, created_at DESC
          LIMIT 2`,
       )
       .all(contract.id) as Array<{
-      actual_transaction_id: string | null;
-      effective_date: string;
+      actual_transaction_id: string;
+      occurred_on: string | null;
       amount_minor: number;
+      created_at: string;
     }>;
 
     if (observations.length < 2) continue;
     const [latest, previous] = observations;
-    if (latest.amount_minor !== previous.amount_minor) continue;
+    if (Math.abs(latest.amount_minor) !== Math.abs(previous.amount_minor)) continue;
 
     const current = Math.abs(contract.amount_minor);
     const suggested = Math.abs(latest.amount_minor);
@@ -148,8 +151,8 @@ export function refreshContractAmountClarifications(db: FinanceDatabase) {
         changeRatio: ratio,
         observations: observations.map(observation => ({
           actualTransactionId: observation.actual_transaction_id,
-          date: observation.effective_date,
-          amountMinor: observation.amount_minor,
+          date: observation.occurred_on ?? observation.created_at.slice(0, 10),
+          amountMinor: Math.abs(observation.amount_minor),
         })),
       }),
       latest.actual_transaction_id,
