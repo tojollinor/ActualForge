@@ -1,6 +1,10 @@
 import http from 'node:http';
 
 import type { FinanceEngineConfig } from './config.js';
+import type {
+  ActualCoreAirtableQueue,
+  ActualCoreBatchInput,
+} from './actual-core-airtable.js';
 import {
   listClarificationCases,
   resolveClarification,
@@ -62,11 +66,12 @@ import {
   type TransferMatchKind,
 } from './transfers.js';
 
-export const FINANCE_ENGINE_VERSION = '0.5.0';
+export const FINANCE_ENGINE_VERSION = '0.6.0';
 
 interface ServerDependencies {
   config: FinanceEngineConfig;
   db: FinanceDatabase;
+  actualCoreAirtable?: ActualCoreAirtableQueue;
 }
 
 function sendJson(
@@ -746,6 +751,7 @@ async function handleForecastRequest(
 export function createFinanceEngineServer({
   config,
   db,
+  actualCoreAirtable,
 }: ServerDependencies): http.Server {
   return http.createServer(async (request, response) => {
     const url = new URL(request.url ?? '/', 'http://finance-engine.local');
@@ -768,6 +774,69 @@ export function createFinanceEngineServer({
       }
 
       const method = request.method ?? 'GET';
+
+      if (url.pathname === '/api/v1/airtable/core-batch') {
+        if (method !== 'POST') {
+          response.setHeader('allow', 'POST');
+          sendJson(response, 405, { error: 'method_not_allowed' });
+          return;
+        }
+
+        if (!actualCoreAirtable) {
+          sendJson(response, 503, { error: 'airtable_bridge_not_configured' });
+          return;
+        }
+
+        const body = (await readJson(request)) as ActualCoreBatchInput;
+        try {
+          const status = actualCoreAirtable.enqueue(body);
+          sendJson(response, 202, { accepted: true, status });
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          const statusCode =
+            message.includes('disabled') || message.includes('not configured')
+              ? 503
+              : 400;
+          sendJson(response, statusCode, {
+            error:
+              statusCode === 503
+                ? 'airtable_bridge_not_configured'
+                : 'invalid_actual_core_batch',
+            message,
+          });
+        }
+        return;
+      }
+
+      if (url.pathname === '/api/v1/airtable/status') {
+        if (method !== 'GET') {
+          response.setHeader('allow', 'GET');
+          sendJson(response, 405, { error: 'method_not_allowed' });
+          return;
+        }
+
+        sendJson(
+          response,
+          200,
+          actualCoreAirtable?.getStatus() ?? {
+            enabled: config.airtable.enabled,
+            configured: Boolean(
+              config.airtable.token && config.airtable.baseId,
+            ),
+            pendingBatches: 0,
+            processing: false,
+            acceptedRecords: 0,
+            syncedRecords: 0,
+            failedRecords: 0,
+            lastSuccessAt: null,
+            lastErrorAt: null,
+            lastError: null,
+          },
+        );
+        return;
+      }
+
+      if (method !== 'GET') {
       if (method !== 'GET') {
         response.setHeader('allow', 'GET');
         sendJson(response, 405, { error: 'method_not_allowed' });
@@ -812,6 +881,14 @@ export function createFinanceEngineServer({
             transactionStorage: 'reference-by-id',
             automaticTransactionMutation: false,
           },
+          airtableIntegration: {
+            enabled: config.airtable.enabled,
+            configured: Boolean(
+              config.airtable.token && config.airtable.baseId,
+            ),
+            syncIntervalMinutes: config.airtable.syncIntervalMinutes,
+            actualCore: actualCoreAirtable?.getStatus() ?? null,
+          },
         });
         return;
       }
@@ -830,6 +907,11 @@ export function createFinanceEngineServer({
             forecasts: 'active',
             merchantMappings: 'schema-ready',
             recognitionRules: 'schema-ready',
+            airtableBridge: config.airtable.enabled ? 'active' : 'disabled',
+            actualCoreExport:
+              config.airtable.enabled && actualCoreAirtable
+                ? 'active'
+                : 'disabled',
           },
           behavior: {
             ambiguousMatchesRequireClarification: true,
