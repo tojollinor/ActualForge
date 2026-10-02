@@ -110,6 +110,51 @@ describe('forecast engine', () => {
     db.close();
   });
 
+  it('keeps scheduled account transfers neutral in income and expense totals', () => {
+    const db = createTestDb();
+
+    const result = generateForecast(db, {
+      startDate: '2026-10-02',
+      endDate: '2026-10-31',
+      accounts: [
+        {
+          accountId: 'checking',
+          accountName: 'Girokonto',
+          balanceMinor: 100000,
+        },
+        {
+          accountId: 'savings',
+          accountName: 'Tagesgeld',
+          balanceMinor: 50000,
+        },
+      ],
+      scheduleEvents: [
+        {
+          sourceRef: 'transfer-schedule:2026-10-15:checking:0',
+          accountId: 'checking',
+          title: 'Sparen',
+          date: '2026-10-15',
+          amountMinor: -20000,
+        },
+        {
+          sourceRef: 'transfer-schedule:2026-10-15:savings:0',
+          accountId: 'savings',
+          title: 'Sparen',
+          date: '2026-10-15',
+          amountMinor: 20000,
+        },
+      ],
+    });
+
+    expect(result.summary.totalStartBalanceMinor).toBe(150000);
+    expect(result.summary.totalEndBalanceMinor).toBe(150000);
+    expect(result.summary.incomeMinor).toBe(0);
+    expect(result.summary.expenseMinor).toBe(0);
+    expect(result.entries.every(entry => !entry.countsAsIncomeExpense)).toBe(true);
+
+    db.close();
+  });
+
   it('projects a credit-card settlement as an internal balance move', () => {
     const db = createTestDb();
 
@@ -171,6 +216,9 @@ describe('forecast engine', () => {
     ]);
     expect(result.summary.totalStartBalanceMinor).toBe(97000);
     expect(result.summary.totalEndBalanceMinor).toBe(97000);
+    expect(result.summary.incomeMinor).toBe(0);
+    expect(result.summary.expenseMinor).toBe(0);
+    expect(cardEntries.every(entry => !entry.countsAsIncomeExpense)).toBe(true);
 
     db.close();
   });
