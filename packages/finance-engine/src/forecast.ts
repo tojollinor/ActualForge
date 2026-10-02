@@ -83,6 +83,7 @@ type ForecastEntry = {
   sourceRef: string | null;
   confidence: number;
   explanation: string;
+  countsAsIncomeExpense: boolean;
   projectedBalanceMinor?: number;
 };
 
@@ -399,7 +400,40 @@ function buildScheduleEntries(
       sourceRef: item.sourceRef,
       confidence: confidence(item.confidence, 1),
       explanation: 'Actual-Schedule',
+      countsAsIncomeExpense: true,
     }));
+}
+
+
+function markNeutralScheduleTransfers(entries: ForecastEntry[]) {
+  const groups = new Map<string, ForecastEntry[]>();
+
+  for (const entry of entries) {
+    if (entry.sourceKind !== 'actual_schedule' || !entry.sourceRef) continue;
+    const scheduleId = entry.sourceRef.split(':', 1)[0];
+    const key = `${scheduleId}:${entry.date}`;
+    groups.set(key, [...(groups.get(key) ?? []), entry]);
+  }
+
+  for (const group of groups.values()) {
+    const used = new Set<string>();
+    for (const debit of group.filter(entry => entry.amountMinor < 0)) {
+      const credit = group.find(
+        entry =>
+          !used.has(entry.id) &&
+          entry.amountMinor > 0 &&
+          entry.accountId !== debit.accountId &&
+          Math.abs(Math.abs(entry.amountMinor) - Math.abs(debit.amountMinor)) <= 1,
+      );
+      if (!credit) continue;
+      debit.countsAsIncomeExpense = false;
+      credit.countsAsIncomeExpense = false;
+      used.add(debit.id);
+      used.add(credit.id);
+    }
+  }
+
+  return entries;
 }
 
 function buildPaymentChainEntries(
@@ -451,6 +485,7 @@ function buildPaymentChainEntries(
         row.status === 'reversed'
           ? 'Erwartete erneute Zahlung nach Rückbuchung'
           : 'Offene Zahlungskette',
+      countsAsIncomeExpense: true,
       contractId: row.contract_id,
     }));
 }
@@ -517,6 +552,7 @@ function buildContractEntries(
             row.amount_mode === 'variable'
               ? 'Vertrag mit variablem Betrag'
               : 'Vertrag',
+          countsAsIncomeExpense: true,
         };
 
         const coveredByChain = paymentChains.some(
@@ -570,6 +606,7 @@ function buildManualEntries(
       sourceRef: row.id,
       confidence: confidence(row.confidence, 1),
       explanation: 'Manuell geplante Zahlung',
+      countsAsIncomeExpense: true,
     }));
 }
 
@@ -625,6 +662,7 @@ function buildCreditCardEntries(
       sourceRef: analysis.actualAccountId,
       confidence: 0.72,
       explanation: 'Hochgerechnete Kreditkartenabrechnung aus offenem Zyklus',
+      countsAsIncomeExpense: false,
     };
     const card: ForecastEntry = {
       ...funding,
@@ -672,7 +710,9 @@ export function generateForecast(
     accounts.map(account => [account.accountId, account.accountName]),
   );
 
-  const schedules = buildScheduleEntries(request, accountNames);
+  const schedules = markNeutralScheduleTransfers(
+    buildScheduleEntries(request, accountNames),
+  );
   const paymentChains = buildPaymentChainEntries(db, request, accountNames);
   const contracts = buildContractEntries(
     db,
@@ -758,10 +798,10 @@ export function generateForecast(
       totalEndBalanceMinor,
       netChangeMinor: totalEndBalanceMinor - totalStartBalanceMinor,
       incomeMinor: entries
-        .filter(entry => entry.amountMinor > 0)
+        .filter(entry => entry.countsAsIncomeExpense && entry.amountMinor > 0)
         .reduce((sum, entry) => sum + entry.amountMinor, 0),
       expenseMinor: entries
-        .filter(entry => entry.amountMinor < 0)
+        .filter(entry => entry.countsAsIncomeExpense && entry.amountMinor < 0)
         .reduce((sum, entry) => sum + Math.abs(entry.amountMinor), 0),
       eventCount: entries.length,
     },
