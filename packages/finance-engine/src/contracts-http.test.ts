@@ -28,6 +28,12 @@ describe('finance-engine contract HTTP API', () => {
       dataDir: dir,
       databasePath: path.join(dir, 'finance.sqlite'),
       actualBaseUrl: 'http://actualforge:5006',
+      airtable: {
+        enabled: false,
+        token: null,
+        baseId: null,
+        syncIntervalMinutes: 15,
+      },
     };
 
     const db = openDatabase(config.databasePath);
