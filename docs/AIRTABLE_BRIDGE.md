@@ -52,10 +52,31 @@ Each table sync appends a row to `SyncLog`.
 
 ## Actual core data
 
-Accounts, categories, schedules and full original transactions live in Actual,
-not in the finance-engine SQLite database. They are intentionally not read by
-opening Actual's database directly.
+Accounts, categories, schedules and original transactions stay authoritative
+inside the opened Actual budget. ActualForge does not open the sync-server's
+budget storage from the finance-engine and does not persist a second transaction
+database there.
 
-Those Airtable tables are already reserved for the next bridge step, which must
-use an explicit Actual application/API seam. This preserves ActualForge's
-existing local-first and reversible architecture.
+When the user starts **Airtable synchronisieren** from the ActualForge page, the
+loaded budget creates a normalized snapshot through the normal Actual
+application layer. The snapshot is sent through the authenticated ActualForge
+same-origin route in chunks of at most 200 records. The finance-engine accepts
+those chunks into an in-memory queue and mirrors them to Airtable in batches of
+10 records.
+
+The following Airtable tables are populated:
+
+- `Accounts`,
+- `Transactions`,
+- `Categories`,
+- `Schedules`.
+
+Split transactions carry `IsParent`, `IsChild`, `ParentId` and
+`CountInTotals`. Financial totals should use records with
+`CountInTotals = true` so split children are not counted twice.
+
+Actual tombstones are mirrored with `Deleted = true` and
+`SyncState = ignored`, preventing deleted source records from looking active
+inside Airtable.
+
+The Actual core snapshot is never written back from Airtable in this release.
