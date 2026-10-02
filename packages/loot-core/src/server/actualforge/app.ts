@@ -1,10 +1,44 @@
 import * as asyncStorage from '#platform/server/asyncStorage';
 import { fetch } from '#platform/server/fetch';
 import { createApp } from '#server/app';
+import { aqlQuery } from '#server/aql';
+import * as db from '#server/db';
 import { PostError } from '#server/errors';
 import { getServer } from '#server/server-config';
+import { q } from '#shared/query';
 
 type RequestMethod = 'GET' | 'POST' | 'PATCH' | 'DELETE';
+type ActualCoreDataset = 'accounts' | 'transactions' | 'categories' | 'schedules';
+type ActualCoreRecord = Record<string, unknown>;
+
+type TransactionSnapshotRow = {
+  id: string;
+  is_parent: number;
+  is_child: number;
+  parent_id: string | null;
+  account: string;
+  category: string | null;
+  payee: string | null;
+  payee_name: string | null;
+  category_name: string | null;
+  amount: number;
+  notes: string | null;
+  date: string;
+  imported_id: string | null;
+  transfer_id: string | null;
+  transfer_account_id: string | null;
+  cleared: number;
+  reconciled: number;
+  schedule: string | null;
+};
+
+function chunk<T>(items: T[], size: number): T[][] {
+  const result: T[][] = [];
+  for (let index = 0; index < items.length; index += size) {
+    result.push(items.slice(index, index + size));
+  }
+  return result;
+}
 
 export type ActualForgeHandlers = {
   'actualforge-overview': () => Promise<unknown>;
@@ -81,6 +115,8 @@ export type ActualForgeHandlers = {
     id: string;
     resolution: Record<string, unknown>;
   }) => Promise<unknown>;
+  'actualforge-airtable-status': () => Promise<unknown>;
+  'actualforge-airtable-sync': () => Promise<unknown>;
 };
 
 export const app = createApp<ActualForgeHandlers>();
@@ -135,6 +171,274 @@ async function request(
 
   return data;
 }
+
+async function pushActualCoreBatches(
+  dataset: ActualCoreDataset,
+  records: ActualCoreRecord[],
+): Promise<void> {
+  for (const batch of chunk(records, 200)) {
+    await request('/airtable/core-batch', 'POST', {
+      dataset,
+      records: batch,
+    });
+  }
+}
+
+async function syncActualCoreToAirtable() {
+  const status = (await request('/airtable/status')) as {
+    enabled?: boolean;
+    configured?: boolean;
+  };
+  if (!status.enabled || !status.configured) {
+    throw new PostError('airtable_bridge_not_configured');
+  }
+
+  const accounts = await db.all<{
+    id: string;
+    name: string;
+    offbudget: number;
+    closed: number;
+    official_name: string | null;
+    account_sync_source: string | null;
+    last_sync: string | null;
+    bank_name: string | null;
+    tombstone: number;
+    balance_minor: number | null;
+    cleared_balance_minor: number | null;
+  }>(`
+    SELECT
+      a.id,
+      a.name,
+      a.offbudget,
+      a.closed,
+      a.official_name,
+      a.account_sync_source,
+      a.last_sync,
+      b.name AS bank_name,
+      a.tombstone,
+      COALESCE(bal.balance_minor, 0) AS balance_minor,
+      COALESCE(bal.cleared_balance_minor, 0) AS cleared_balance_minor
+    FROM accounts a
+    LEFT JOIN banks b ON b.id = a.bank
+    LEFT JOIN (
+      SELECT
+        account,
+        SUM(CASE WHEN is_parent = 0 THEN amount ELSE 0 END) AS balance_minor,
+        SUM(
+          CASE
+            WHEN is_parent = 0 AND cleared = 1 THEN amount
+            ELSE 0
+          END
+        ) AS cleared_balance_minor
+      FROM v_transactions
+      GROUP BY account
+    ) bal ON bal.account = a.id
+    ORDER BY a.sort_order, a.name
+  `);
+
+  const accountRecords: ActualCoreRecord[] = accounts.map(account => ({
+    id: account.id,
+    name: account.name,
+    type: account.offbudget ? 'offbudget' : 'onbudget',
+    institution: account.bank_name,
+    balanceMinor: account.balance_minor ?? 0,
+    clearedBalanceMinor: account.cleared_balance_minor ?? 0,
+    closed: Boolean(account.closed),
+    offBudget: Boolean(account.offbudget),
+    accountSyncSource: account.account_sync_source,
+    lastSync: account.last_sync,
+    deleted: Boolean(account.tombstone),
+  }));
+
+  const categories = await db.all<{
+    id: string;
+    name: string;
+    is_income: number;
+    group_id: string | null;
+    group_name: string | null;
+    hidden: number;
+    tombstone: number;
+  }>(`
+    SELECT
+      c.id,
+      c.name,
+      c.is_income,
+      c.cat_group AS group_id,
+      cg.name AS group_name,
+      c.hidden,
+      c.tombstone
+    FROM categories c
+    LEFT JOIN category_groups cg ON cg.id = c.cat_group
+    ORDER BY c.sort_order, c.name
+  `);
+
+  const categoryRecords: ActualCoreRecord[] = categories.map(category => ({
+    id: category.id,
+    name: category.name,
+    groupId: category.group_id,
+    groupName: category.group_name,
+    hidden: Boolean(category.hidden),
+    isIncome: Boolean(category.is_income),
+    deleted: Boolean(category.tombstone),
+  }));
+
+  const payees = await db.all<{ id: string; name: string }>(
+    'SELECT id, name FROM payees WHERE tombstone = 0',
+  );
+  const payeeNames = new Map(payees.map(payee => [payee.id, payee.name]));
+
+  const { data: activeSchedules } = await aqlQuery(
+    q('schedules').select('*'),
+  );
+  const scheduleRecords: ActualCoreRecord[] = (
+    activeSchedules as Array<Record<string, unknown>>
+  ).map(schedule => {
+    const actions = Array.isArray(schedule._actions)
+      ? (schedule._actions as Array<Record<string, unknown>>)
+      : [];
+    const categoryAction = actions.find(
+      action =>
+        action.op === 'set' &&
+        action.field === 'category' &&
+        typeof action.value === 'string',
+    );
+    const amount =
+      typeof schedule._amount === 'number' ? schedule._amount : null;
+    const payeeId =
+      typeof schedule._payee === 'string' ? schedule._payee : null;
+
+    return {
+      id: String(schedule.id),
+      name:
+        typeof schedule.name === 'string' && schedule.name
+          ? schedule.name
+          : 'Schedule',
+      accountId:
+        typeof schedule._account === 'string' ? schedule._account : null,
+      payeeId,
+      payeeName: payeeId ? payeeNames.get(payeeId) ?? null : null,
+      categoryId:
+        categoryAction && typeof categoryAction.value === 'string'
+          ? categoryAction.value
+          : null,
+      amountMinor: amount,
+      nextDate:
+        typeof schedule.next_date === 'string' ? schedule.next_date : null,
+      active: !Boolean(schedule.completed),
+      completed: Boolean(schedule.completed),
+      postsTransaction: Boolean(schedule.posts_transaction),
+      rule: JSON.stringify({
+        rule: schedule.rule ?? null,
+        date: schedule._date ?? null,
+        amount: schedule._amount ?? null,
+        amountOp: schedule._amountOp ?? null,
+        conditions: schedule._conditions ?? [],
+        actions,
+      }),
+      deleted: Boolean(schedule.tombstone),
+    };
+  });
+
+  const deletedSchedules = await db.all<{ id: string }>(
+    'SELECT id FROM schedules WHERE tombstone = 1',
+  );
+  const activeScheduleIds = new Set(
+    scheduleRecords.map(schedule => String(schedule.id)),
+  );
+  for (const deleted of deletedSchedules) {
+    if (!activeScheduleIds.has(deleted.id)) {
+      scheduleRecords.push({
+        id: deleted.id,
+        deleted: true,
+        active: false,
+        completed: true,
+        postsTransaction: false,
+      });
+    }
+  }
+
+  const transactions = await db.all<TransactionSnapshotRow>(`
+    SELECT
+      v.id,
+      v.is_parent,
+      v.is_child,
+      v.parent_id,
+      v.account,
+      v.category,
+      v.payee,
+      p.name AS payee_name,
+      c.name AS category_name,
+      v.amount,
+      v.notes,
+      v.date,
+      v.imported_id,
+      v.transfer_id,
+      transfer.acct AS transfer_account_id,
+      v.cleared,
+      raw.reconciled,
+      raw.schedule
+    FROM v_transactions v
+    JOIN transactions raw ON raw.id = v.id
+    LEFT JOIN payees p ON p.id = v.payee
+    LEFT JOIN categories c ON c.id = v.category
+    LEFT JOIN transactions transfer ON transfer.id = v.transfer_id
+    ORDER BY v.date, v.id
+  `);
+
+  const transactionRecords: ActualCoreRecord[] = transactions.map(
+    transaction => ({
+      id: transaction.id,
+      accountId: transaction.account,
+      date: transaction.date,
+      amountMinor: transaction.amount,
+      payeeId: transaction.payee,
+      payeeName: transaction.payee_name,
+      categoryId: transaction.category,
+      categoryName: transaction.category_name,
+      notes: transaction.notes,
+      cleared: Boolean(transaction.cleared),
+      reconciled: Boolean(transaction.reconciled),
+      importedId: transaction.imported_id,
+      transferId: transaction.transfer_id,
+      transferAccountId: transaction.transfer_account_id,
+      isTransfer: Boolean(transaction.transfer_id),
+      isParent: Boolean(transaction.is_parent),
+      isChild: Boolean(transaction.is_child),
+      parentId: transaction.parent_id,
+      scheduleId: transaction.schedule,
+      deleted: false,
+    }),
+  );
+
+  const deletedTransactions = await db.all<{ id: string }>(
+    'SELECT id FROM transactions WHERE tombstone = 1',
+  );
+  transactionRecords.push(
+    ...deletedTransactions.map(transaction => ({
+      id: transaction.id,
+      deleted: true,
+    })),
+  );
+
+  await pushActualCoreBatches('accounts', accountRecords);
+  await pushActualCoreBatches('categories', categoryRecords);
+  await pushActualCoreBatches('schedules', scheduleRecords);
+  await pushActualCoreBatches('transactions', transactionRecords);
+
+  return {
+    accepted: true,
+    counts: {
+      accounts: accountRecords.length,
+      categories: categoryRecords.length,
+      schedules: scheduleRecords.length,
+      transactions: transactionRecords.length,
+    },
+    status: await request('/airtable/status'),
+  };
+}
+
+app.method('actualforge-airtable-status', () => request('/airtable/status'));
+app.method('actualforge-airtable-sync', syncActualCoreToAirtable);
 
 app.method('actualforge-overview', async () => {
   const [health, ready, status, capabilities] = await Promise.all([
