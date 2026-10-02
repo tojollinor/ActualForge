@@ -598,3 +598,188 @@ export async function analyzeCreditCards(
   })) as { creditCards: CreditCardAnalysis[] };
   return result.creditCards;
 }
+
+
+export type PredictionStatus = 'planned' | 'fulfilled' | 'cancelled';
+export type PredictionSourceKind =
+  | 'manual'
+  | 'actual_schedule'
+  | 'contract'
+  | 'payment_chain'
+  | 'credit_card_settlement';
+
+export interface PredictionEntry {
+  id: string;
+  contractId: string | null;
+  title: string;
+  accountId: string | null;
+  expectedDate: string;
+  amountMinor: number;
+  currency: string;
+  status: PredictionStatus;
+  actualTransactionId: string | null;
+  sourceKind: PredictionSourceKind;
+  sourceRef: string | null;
+  confidence: number | null;
+  notes: string | null;
+  metadata: Record<string, unknown> | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PredictionPayload {
+  title: string;
+  accountId: string;
+  expectedDate: string;
+  amountMinor: number;
+  currency?: string | null;
+  notes?: string | null;
+  status?: PredictionStatus;
+}
+
+export interface ForecastAccountInput {
+  accountId: string;
+  accountName?: string | null;
+  balanceMinor: number;
+}
+
+export interface ScheduleForecastInput {
+  sourceRef: string;
+  accountId: string;
+  accountName?: string | null;
+  title: string;
+  date: string;
+  amountMinor: number;
+  confidence?: number | null;
+}
+
+export interface ForecastEntry {
+  id: string;
+  title: string;
+  accountId: string;
+  accountName: string | null;
+  date: string;
+  amountMinor: number;
+  currency: string;
+  sourceKind: PredictionSourceKind;
+  sourceRef: string | null;
+  confidence: number;
+  explanation: string;
+  projectedBalanceMinor?: number;
+}
+
+export interface ForecastResult {
+  startDate: string;
+  endDate: string;
+  entries: ForecastEntry[];
+  accounts: Array<{
+    accountId: string;
+    accountName: string | null;
+    startBalanceMinor: number;
+    endBalanceMinor: number;
+    lowestBalanceMinor: number;
+    lowestBalanceDate: string;
+    eventCount: number;
+  }>;
+  summary: {
+    totalStartBalanceMinor: number;
+    totalEndBalanceMinor: number;
+    netChangeMinor: number;
+    incomeMinor: number;
+    expenseMinor: number;
+    eventCount: number;
+  };
+}
+
+export interface ClarificationCase {
+  id: string;
+  kind: string;
+  status: 'open' | 'resolved' | 'dismissed';
+  subject: string | null;
+  payload: Record<string, unknown>;
+  resolution: Record<string, unknown> | null;
+  paymentChainId: string | null;
+  actualTransactionId: string | null;
+  confidence: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export async function listPredictions(
+  status?: PredictionStatus,
+): Promise<PredictionEntry[]> {
+  const result = (await send('actualforge-predictions-list', {
+    ...(status ? { status } : {}),
+  })) as { predictions: PredictionEntry[] };
+  return result.predictions;
+}
+
+export async function createPrediction(
+  payload: PredictionPayload,
+): Promise<PredictionEntry> {
+  const result = (await send('actualforge-prediction-create', {
+    ...payload,
+  })) as { prediction: PredictionEntry };
+  return result.prediction;
+}
+
+export async function updatePrediction(
+  id: string,
+  changes: Partial<PredictionPayload>,
+): Promise<PredictionEntry> {
+  const result = (await send('actualforge-prediction-update', {
+    id,
+    changes: { ...changes },
+  })) as { prediction: PredictionEntry };
+  return result.prediction;
+}
+
+export async function removePrediction(id: string): Promise<void> {
+  await send('actualforge-prediction-remove', { id });
+}
+
+export async function generateActualForgeForecast(input: {
+  startDate: string;
+  endDate: string;
+  accounts: ForecastAccountInput[];
+  scheduleEvents?: ScheduleForecastInput[];
+  transactionCandidates?: TransferCandidate[];
+}): Promise<ForecastResult> {
+  return (await send('actualforge-forecast-generate', {
+    startDate: input.startDate,
+    endDate: input.endDate,
+    accounts: input.accounts.map(account => ({ ...account })),
+    scheduleEvents: input.scheduleEvents?.map(event => ({ ...event })) ?? [],
+    transactionCandidates:
+      input.transactionCandidates?.map(candidate => ({ ...candidate })) ?? [],
+  })) as ForecastResult;
+}
+
+export async function listClarifications(
+  status?: 'open' | 'resolved' | 'dismissed',
+): Promise<ClarificationCase[]> {
+  const result = (await send('actualforge-clarifications-list', {
+    ...(status ? { status } : {}),
+  })) as { clarifications: ClarificationCase[] };
+  return result.clarifications;
+}
+
+export async function resolveClarification(
+  id: string,
+  resolution:
+    | { action: 'dismiss' }
+    | {
+        action: 'confirm';
+        role?: PaymentRole;
+        amountMinor?: number;
+        date?: string;
+        splits?: TransactionSplitPayload[];
+        transferKind?: TransferMatchKind;
+      },
+): Promise<ClarificationCase[]> {
+  const result = (await send('actualforge-clarification-resolve', {
+    id,
+    resolution: { ...resolution },
+  })) as { clarifications: ClarificationCase[] };
+  return result.clarifications;
+}
