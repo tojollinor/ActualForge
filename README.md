@@ -31,11 +31,12 @@ The existing Actual web/PWA now contains an **ActualForge** route in desktop and
 See:
 - [docs/ACTUALFORGE_ARCHITECTURE.md](./docs/ACTUALFORGE_ARCHITECTURE.md)
 - [docs/FINANCE_ENGINE.md](./docs/FINANCE_ENGINE.md)
+- [docs/AIRTABLE_BRIDGE.md](./docs/AIRTABLE_BRIDGE.md)
 - [docs/DOCKER.md](./docs/DOCKER.md)
 
 ## Current release
 
-**ActualForge 0.1.0** is the first independent ActualForge release. It is based on Actual Budget **v26.9.0** at commit `59fe126f637d858c061e1eeedbef5436c8f2225a`.
+**ActualForge 0.1.1** adds the optional Airtable bridge while keeping Actual and the finance-engine authoritative. It remains based on Actual Budget **v26.9.0** at commit `59fe126f637d858c061e1eeedbef5436c8f2225a`.
 
 For a published container deployment:
 
@@ -47,8 +48,8 @@ docker compose -f compose.release.yaml up -d
 
 Published images:
 
-- `ghcr.io/tojollinor/actualforge:0.1.0`
-- `ghcr.io/tojollinor/actualforge-finance-engine:0.1.0`
+- `ghcr.io/tojollinor/actualforge:0.1.1`
+- `ghcr.io/tojollinor/actualforge-finance-engine:0.1.1`
 
 See [docs/OPERATIONS.md](./docs/OPERATIONS.md), [CHANGELOG.md](./CHANGELOG.md), and [ACTUALFORGE_RELEASE.json](./ACTUALFORGE_RELEASE.json).
 
