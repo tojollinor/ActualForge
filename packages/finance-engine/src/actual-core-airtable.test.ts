@@ -55,7 +55,7 @@ describe('Actual core Airtable queue', () => {
         {
           id: 'tx-1',
           accountId: 'acct-1',
-          date: '2026-10-02',
+          date: 20261002,
           amountMinor: -1234,
           payeeId: 'payee-1',
           payeeName: 'Test Shop',
@@ -92,6 +92,7 @@ describe('Actual core Airtable queue', () => {
     expect(body.records[0].fields).toMatchObject({
       ActualId: 'tx-1',
       AccountId: 'acct-1',
+      Date: '2026-10-02',
       Amount: -12.34,
       Payee: 'Test Shop',
       Category: 'Shopping',
