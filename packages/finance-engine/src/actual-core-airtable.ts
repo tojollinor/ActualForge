@@ -51,6 +51,26 @@ function number(row: CoreRecord, key: string): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null;
 }
 
+function date(row: CoreRecord, key: string): string | null {
+  const value = row[key];
+  const raw =
+    typeof value === 'number' && Number.isInteger(value)
+      ? String(value)
+      : typeof value === 'string'
+        ? value
+        : '';
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    return raw;
+  }
+
+  if (/^\d{8}$/.test(raw)) {
+    return `${raw.slice(0, 4)}-${raw.slice(4, 6)}-${raw.slice(6, 8)}`;
+  }
+
+  return null;
+}
+
 function boolean(row: CoreRecord, key: string): boolean {
   return row[key] === true || row[key] === 1;
 }
@@ -96,7 +116,7 @@ const DEFINITIONS: Record<ActualCoreDataset, CoreSyncDefinition> = {
     toFields: row => ({
       ActualId: text(row, 'id'),
       AccountId: text(row, 'accountId'),
-      Date: text(row, 'date'),
+      Date: date(row, 'date'),
       Amount: minorToMajor(row, 'amountMinor'),
       PayeeId: text(row, 'payeeId'),
       Payee: text(row, 'payeeName'),
@@ -146,7 +166,7 @@ const DEFINITIONS: Record<ActualCoreDataset, CoreSyncDefinition> = {
       Payee: text(row, 'payeeName'),
       CategoryId: text(row, 'categoryId'),
       Amount: minorToMajor(row, 'amountMinor'),
-      NextDate: text(row, 'nextDate'),
+      NextDate: date(row, 'nextDate'),
       Rule: text(row, 'rule'),
       Active: boolean(row, 'active'),
       Completed: boolean(row, 'completed'),

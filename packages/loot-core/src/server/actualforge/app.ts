@@ -23,7 +23,7 @@ type TransactionSnapshotRow = {
   category_name: string | null;
   amount: number;
   notes: string | null;
-  date: string;
+  date: number;
   imported_id: string | null;
   transfer_id: string | null;
   transfer_account_id: string | null;
