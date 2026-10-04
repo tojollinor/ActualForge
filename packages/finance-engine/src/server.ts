@@ -66,7 +66,7 @@ import {
   type TransferMatchKind,
 } from './transfers.js';
 
-export const FINANCE_ENGINE_VERSION = '0.5.0';
+export const FINANCE_ENGINE_VERSION = '0.6.0';
 
 interface ServerDependencies {
   config: FinanceEngineConfig;

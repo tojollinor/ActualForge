@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.1.2 - 2026-10-04
+
+### Added
+
+- explicit Actual core export to Airtable for accounts, transactions, categories and schedules,
+- authenticated, fixed ActualForge proxy endpoints for core Airtable batches and status,
+- chunked in-memory export queue for large transaction sets,
+- mobile-friendly **Airtable synchronisieren** control and queue/error status,
+- split-transaction metadata including `IsParent`, `IsChild`, `ParentId` and `CountInTotals`,
+- tombstone mirroring with `Deleted` and ignored sync state.
+
+### Safety boundary
+
+- Actual remains authoritative for original budget data,
+- the finance-engine does not persist a second full copy of Actual transactions,
+- core data is exported only from the opened Actual budget through the authenticated application bridge,
+- Airtable writeback into Actual remains disabled.
+
 ## 0.1.1 - 2026-10-02
 
 ### Added
