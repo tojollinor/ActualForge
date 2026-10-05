@@ -114,4 +114,88 @@ describe('Airtable bridge', () => {
 
     db.close();
   });
+
+  it('marks Airtable records as ignored after their finance-engine row was deleted', async () => {
+    const dir = mkdtempSync(path.join(os.tmpdir(), 'actualforge-airtable-delete-'));
+    tempDirs.push(dir);
+    const db = openDatabase(path.join(dir, 'finance.sqlite'));
+
+    const requests: Array<{
+      url: string;
+      method: string;
+      body: unknown;
+    }> = [];
+
+    const fetchImpl: typeof fetch = async (input, init) => {
+      const url = input.toString();
+      const method = init?.method ?? 'GET';
+      const body =
+        typeof init?.body === 'string' ? JSON.parse(init.body) : init?.body;
+
+      requests.push({ url, method, body });
+
+      if (method === 'GET' && url.includes('/PredictionEntries?')) {
+        return new Response(
+          JSON.stringify({
+            records: [
+              {
+                id: 'rec-stale-prediction',
+                fields: {
+                  EngineId: 'prediction-deleted',
+                  SyncState: 'synced',
+                },
+              },
+            ],
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        );
+      }
+
+      if (method === 'GET') {
+        return new Response(JSON.stringify({ records: [] }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
+      }
+
+      return new Response(JSON.stringify({ records: [] }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    };
+
+    const result = await syncFinanceEngineToAirtable(
+      db,
+      {
+        enabled: true,
+        token: 'pat_test',
+        baseId: 'appDhIt8N6IH2EM5J',
+        syncIntervalMinutes: 15,
+      },
+      fetchImpl,
+    );
+
+    expect(result.ok).toBe(true);
+    expect(
+      result.tables.find(table => table.table === 'PredictionEntries')
+        ?.ignoredRecords,
+    ).toBe(1);
+
+    const ignoredPatch = requests.find(request => {
+      if (request.method !== 'PATCH' || !request.url.endsWith('/PredictionEntries')) {
+        return false;
+      }
+      const payload = request.body as {
+        records?: Array<{ id?: string; fields?: Record<string, unknown> }>;
+      };
+      return payload.records?.some(
+        record =>
+          record.id === 'rec-stale-prediction' &&
+          record.fields?.SyncState === 'ignored',
+      );
+    });
+
+    expect(ignoredPatch).toBeDefined();
+    db.close();
+  });
 });
