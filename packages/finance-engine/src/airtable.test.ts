@@ -178,7 +178,7 @@ describe('Airtable bridge', () => {
     expect(result.ok).toBe(true);
     expect(
       result.tables.find(table => table.table === 'PredictionEntries')
-        ?.ignoredRecords,
+        ?.staleRecords,
     ).toBe(1);
 
     const staleDelete = requests.find(request => {
