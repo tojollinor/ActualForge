@@ -208,7 +208,7 @@ describe('Actual core Airtable queue', () => {
   });
 
   it('rejects a second sync run while the first one is still queued', async () => {
-    let releaseRequest: (() => void) | null = null;
+    let releaseRequest!: () => void;
     const gate = new Promise<void>(resolve => {
       releaseRequest = resolve;
     });
@@ -244,7 +244,7 @@ describe('Actual core Airtable queue', () => {
       }),
     ).toThrow('Another Actual core sync is already in progress');
 
-    releaseRequest?.();
+    releaseRequest();
     await waitForDrain(queue.getStatus);
   });
 
