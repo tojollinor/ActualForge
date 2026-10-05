@@ -15,9 +15,10 @@ for attempt in $(seq 1 60); do
   sleep 2
 done
 
-published_engine_port="$(docker compose -f "$COMPOSE_FILE" port finance-engine 5010 2>/dev/null || true)"
-if [ -n "$published_engine_port" ]; then
-  echo "finance-engine port 5010 must stay internal, but is published as: $published_engine_port" >&2
+finance_engine_container="$(docker compose -f "$COMPOSE_FILE" ps -q finance-engine)"
+finance_engine_bindings="$(docker inspect --format '{{json .HostConfig.PortBindings}}' "$finance_engine_container")"
+if [ "$finance_engine_bindings" != "{}" ] && [ "$finance_engine_bindings" != "null" ]; then
+  echo "finance-engine must not publish host ports, but has bindings: $finance_engine_bindings" >&2
   exit 1
 fi
 
