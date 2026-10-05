@@ -1,7 +1,12 @@
+import { generateKeyPairSync } from 'node:crypto';
+
 import { sign } from 'jws';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { getJWT } from '#app-enablebanking/utils/jwt';
+import {
+  getJWT,
+  normalizeEnableBankingPrivateKey,
+} from '#app-enablebanking/utils/jwt';
 
 // Mock jws to avoid needing real RSA keys
 vi.mock('jws', () => ({
@@ -68,5 +73,55 @@ describe('getJWT', () => {
     const result = getJWT('my-app-id', 'my-secret-key');
     expect(typeof result).toBe('string');
     expect(result.length).toBeGreaterThan(0);
+  });
+});
+
+describe('normalizeEnableBankingPrivateKey', () => {
+  function createPrivateKeyMaterial() {
+    const { privateKey } = generateKeyPairSync('rsa', {
+      modulusLength: 2048,
+    });
+
+    return {
+      pem: privateKey.export({
+        type: 'pkcs8',
+        format: 'pem',
+      }).toString(),
+      derBase64: privateKey
+        .export({
+          type: 'pkcs8',
+          format: 'der',
+        })
+        .toString('base64'),
+    };
+  }
+
+  it('accepts a PEM private key', () => {
+    const { pem } = createPrivateKeyMaterial();
+    const normalized = normalizeEnableBankingPrivateKey(pem);
+
+    expect(normalized).toContain('-----BEGIN PRIVATE KEY-----');
+    expect(normalized).toContain('-----END PRIVATE KEY-----');
+  });
+
+  it('accepts PEM pasted with escaped newlines', () => {
+    const { pem } = createPrivateKeyMaterial();
+    const escaped = pem.replace(/\n/g, '\\n');
+    const normalized = normalizeEnableBankingPrivateKey(escaped);
+
+    expect(normalized).toContain('-----BEGIN PRIVATE KEY-----');
+  });
+
+  it('accepts base64 DER private-key content without PEM markers', () => {
+    const { derBase64 } = createPrivateKeyMaterial();
+    const normalized = normalizeEnableBankingPrivateKey(derBase64);
+
+    expect(normalized).toContain('-----BEGIN PRIVATE KEY-----');
+  });
+
+  it('rejects text that is not an RSA private key', () => {
+    expect(() =>
+      normalizeEnableBankingPrivateKey('definitely-not-a-private-key'),
+    ).toThrow('Invalid Enable Banking private key');
   });
 });

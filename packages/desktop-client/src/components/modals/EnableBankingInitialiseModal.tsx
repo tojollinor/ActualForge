@@ -34,6 +34,7 @@ export function EnableBankingInitialiseModal({
   const { t } = useTranslation();
   const [applicationId, setApplicationId] = useState('');
   const [secretKey, setSecretKey] = useState('');
+  const [manualSecretKey, setManualSecretKey] = useState('');
   const [isValid, setIsValid] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [keyFileName, setKeyFileName] = useState('');
@@ -48,10 +49,12 @@ export function EnableBankingInitialiseModal({
     try {
       const text = await file.text();
       setSecretKey(text);
+      setManualSecretKey('');
       setKeyFileName(file.name);
       setIsValid(true);
     } catch {
       setSecretKey('');
+      setManualSecretKey('');
       setKeyFileName('');
       setIsValid(false);
       setError(t('Failed to read the key file. Please try again.'));
@@ -174,7 +177,7 @@ export function EnableBankingInitialiseModal({
 
             <FormField>
               <FormLabel
-                title={t('Secret Key (.pem file):')}
+                title={t('Private key file (.pem or .key):')}
                 htmlFor="secret-key-field"
               />
               <input
@@ -183,6 +186,46 @@ export function EnableBankingInitialiseModal({
                 accept=".pem,.key"
                 onChange={onFileChange}
               />
+            </FormField>
+
+            <FormField>
+              <FormLabel
+                title={t('Or paste the private key:')}
+                htmlFor="secret-key-text-field"
+              />
+              <textarea
+                id="secret-key-text-field"
+                value={manualSecretKey}
+                autoComplete="off"
+                spellCheck={false}
+                placeholder={t(
+                  'PEM content, escaped PEM with \\n, or base64 private-key content',
+                )}
+                onChange={event => {
+                  const value = event.currentTarget.value;
+                  setManualSecretKey(value);
+                  setSecretKey(value);
+                  setKeyFileName('');
+                  setIsValid(true);
+                }}
+                style={{
+                  minHeight: 96,
+                  resize: 'vertical',
+                  padding: 6,
+                  borderRadius: 4,
+                  border: '1px solid ' + theme.formInputBorder,
+                  backgroundColor: theme.tableBackground,
+                  color: theme.formInputText,
+                  fontFamily: 'monospace',
+                  fontSize: 12,
+                }}
+              />
+              <Text style={{ fontSize: 12, color: theme.pageTextSubdued }}>
+                <Trans>
+                  The key is validated on your ActualForge server and is only
+                  saved after Enable Banking accepts the credentials.
+                </Trans>
+              </Text>
             </FormField>
 
             {secretKey && (
@@ -197,7 +240,7 @@ export function EnableBankingInitialiseModal({
                   style={{ width: 14, height: 14, color: theme.noticeText }}
                 />
                 <Text style={{ fontSize: 12, color: theme.pageTextSubdued }}>
-                  {keyFileName}
+                  {keyFileName || t('Private key pasted')}
                 </Text>
               </View>
             )}
