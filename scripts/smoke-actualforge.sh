@@ -15,6 +15,12 @@ for attempt in $(seq 1 60); do
   sleep 2
 done
 
+published_engine_port="$(docker compose -f "$COMPOSE_FILE" port finance-engine 5010 2>/dev/null || true)"
+if [ -n "$published_engine_port" ]; then
+  echo "finance-engine port 5010 must stay internal, but is published as: $published_engine_port" >&2
+  exit 1
+fi
+
 docker compose -f "$COMPOSE_FILE" exec -T finance-engine node --input-type=module <<'NODE'
 const base = 'http://127.0.0.1:5010';
 async function json(path, init) {
