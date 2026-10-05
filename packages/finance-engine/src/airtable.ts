@@ -17,6 +17,7 @@ interface TableSyncDefinition {
 export interface AirtableTableSyncResult {
   table: string;
   records: number;
+  ignoredRecords: number;
   status: 'success' | 'error';
   durationMs: number;
   error?: string;
@@ -255,13 +256,30 @@ function delay(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+function retryAfterMs(value: string | null): number | null {
+  if (!value) return null;
+
+  const seconds = Number(value);
+  if (Number.isFinite(seconds) && seconds > 0) {
+    return seconds * 1000;
+  }
+
+  const timestamp = Date.parse(value);
+  if (Number.isFinite(timestamp)) {
+    return Math.max(0, timestamp - Date.now());
+  }
+
+  return null;
+}
+
 async function airtableRequest(
   config: AirtableBridgeConfig,
   table: string,
-  method: 'POST' | 'PATCH',
-  payload: unknown,
+  method: 'GET' | 'POST' | 'PATCH',
+  payload: unknown | undefined,
   fetchImpl: typeof fetch,
-): Promise<void> {
+  query?: URLSearchParams,
+): Promise<unknown> {
   if (!config.token || !config.baseId) {
     throw new Error('Airtable bridge is missing credentials');
   }
@@ -270,7 +288,8 @@ async function airtableRequest(
     'https://api.airtable.com/v0/' +
     encodeURIComponent(config.baseId) +
     '/' +
-    encodeURIComponent(table);
+    encodeURIComponent(table) +
+    (query ? `?${query.toString()}` : '');
 
   let lastError = 'unknown Airtable error';
 
@@ -278,20 +297,36 @@ async function airtableRequest(
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 15_000);
 
+    let response: Response;
     try {
-      const response = await fetchImpl(url, {
+      response = await fetchImpl(url, {
         method,
         headers: {
           authorization: `Bearer ${config.token}`,
           'content-type': 'application/json',
         },
-        body: JSON.stringify(payload),
+        ...(payload === undefined ? {} : { body: JSON.stringify(payload) }),
         signal: controller.signal,
       });
+    } catch (error) {
+      clearTimeout(timeout);
+      lastError = error instanceof Error ? error.message : String(error);
+      if (attempt === 3) {
+        throw new Error(lastError);
+      }
+      await delay(500 * 2 ** attempt);
+      continue;
+    }
 
+    try {
       const responseText = await response.text();
       if (response.ok) {
-        return;
+        if (!responseText) return null;
+        try {
+          return JSON.parse(responseText) as unknown;
+        } catch {
+          return responseText;
+        }
       }
 
       lastError = `Airtable ${table} returned ${response.status}: ${responseText.slice(0, 500)}`;
@@ -300,18 +335,9 @@ async function airtableRequest(
         throw new Error(lastError);
       }
 
-      const retryAfter = Number(response.headers.get('retry-after'));
       await delay(
-        Number.isFinite(retryAfter) && retryAfter > 0
-          ? retryAfter * 1000
-          : 500 * 2 ** attempt,
+        retryAfterMs(response.headers.get('retry-after')) ?? 500 * 2 ** attempt,
       );
-    } catch (error) {
-      lastError = error instanceof Error ? error.message : String(error);
-      if (attempt === 3) {
-        throw new Error(lastError);
-      }
-      await delay(500 * 2 ** attempt);
     } finally {
       clearTimeout(timeout);
     }
@@ -345,6 +371,81 @@ async function upsertTable(
   }
 }
 
+async function markMissingRecordsIgnored(
+  config: AirtableBridgeConfig,
+  definition: TableSyncDefinition,
+  rows: SqlRow[],
+  fetchImpl: typeof fetch,
+): Promise<number> {
+  const localIds = new Set(
+    rows
+      .map(row => definition.toFields(row)[definition.mergeField])
+      .filter((value): value is string => typeof value === 'string' && value.length > 0),
+  );
+
+  const staleRecords: Array<{ id: string; fields: { SyncState: 'ignored' } }> = [];
+  let offset: string | null = null;
+
+  do {
+    const query = new URLSearchParams();
+    query.set('pageSize', '100');
+    query.append('fields[]', definition.mergeField);
+    query.append('fields[]', 'SyncState');
+    if (offset) {
+      query.set('offset', offset);
+    }
+
+    const response = (await airtableRequest(
+      config,
+      definition.airtableTable,
+      'GET',
+      undefined,
+      fetchImpl,
+      query,
+    )) as {
+      records?: Array<{
+        id?: unknown;
+        fields?: Record<string, unknown>;
+      }>;
+      offset?: unknown;
+    } | null;
+
+    for (const record of response?.records ?? []) {
+      const remoteId = record.fields?.[definition.mergeField];
+      const syncState = record.fields?.SyncState;
+      if (
+        typeof record.id === 'string' &&
+        typeof remoteId === 'string' &&
+        remoteId.length > 0 &&
+        syncState === 'synced' &&
+        !localIds.has(remoteId)
+      ) {
+        staleRecords.push({
+          id: record.id,
+          fields: { SyncState: 'ignored' },
+        });
+      }
+    }
+
+    offset = typeof response?.offset === 'string' ? response.offset : null;
+  } while (offset);
+
+  for (const batch of chunk(staleRecords, 10)) {
+    await airtableRequest(
+      config,
+      definition.airtableTable,
+      'PATCH',
+      {
+        typecast: true,
+        records: batch,
+      },
+      fetchImpl,
+    );
+  }
+
+  return staleRecords.length;
+}
+
 async function appendSyncLog(
   config: AirtableBridgeConfig,
   result: AirtableTableSyncResult,
@@ -368,11 +469,12 @@ async function appendSyncLog(
               Status: result.status === 'success' ? 'success' : 'error',
               Message:
                 result.status === 'success'
-                  ? `Synced ${result.records} record(s)`
+                  ? `Synced ${result.records} record(s), ignored ${result.ignoredRecords} stale record(s)`
                   : result.error ?? 'Airtable sync failed',
               DurationMs: result.durationMs,
               Payload: JSON.stringify({
                 records: result.records,
+                ignoredRecords: result.ignoredRecords,
                 status: result.status,
               }),
             },
@@ -416,9 +518,16 @@ export async function syncFinanceEngineToAirtable(
 
     try {
       await upsertTable(config, definition, rows, fetchImpl);
+      const ignoredRecords = await markMissingRecordsIgnored(
+        config,
+        definition,
+        rows,
+        fetchImpl,
+      );
       const result: AirtableTableSyncResult = {
         table: definition.airtableTable,
         records: rows.length,
+        ignoredRecords,
         status: 'success',
         durationMs: Date.now() - started,
       };
@@ -428,6 +537,7 @@ export async function syncFinanceEngineToAirtable(
       const result: AirtableTableSyncResult = {
         table: definition.airtableTable,
         records: rows.length,
+        ignoredRecords: 0,
         status: 'error',
         durationMs: Date.now() - started,
         error: error instanceof Error ? error.message : String(error),
@@ -472,6 +582,7 @@ export function startAirtableSyncLoop(
             tables: result.tables.map(table => ({
               table: table.table,
               records: table.records,
+              ignoredRecords: table.ignoredRecords,
               status: table.status,
             })),
           }),
