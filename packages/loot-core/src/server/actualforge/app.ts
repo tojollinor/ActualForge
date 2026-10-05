@@ -1,3 +1,5 @@
+import { v4 as uuidv4 } from 'uuid';
+
 import * as asyncStorage from '#platform/server/asyncStorage';
 import { fetch } from '#platform/server/fetch';
 import { createApp } from '#server/app';
@@ -175,11 +177,13 @@ async function request(
 async function pushActualCoreBatches(
   dataset: ActualCoreDataset,
   records: ActualCoreRecord[],
+  syncId: string,
 ): Promise<void> {
   for (const batch of chunk(records, 200)) {
     await request('/airtable/core-batch', 'POST', {
       dataset,
       records: batch,
+      syncId,
     });
   }
 }
@@ -420,10 +424,12 @@ async function syncActualCoreToAirtable() {
     })),
   );
 
-  await pushActualCoreBatches('accounts', accountRecords);
-  await pushActualCoreBatches('categories', categoryRecords);
-  await pushActualCoreBatches('schedules', scheduleRecords);
-  await pushActualCoreBatches('transactions', transactionRecords);
+  const syncId = uuidv4();
+
+  await pushActualCoreBatches('accounts', accountRecords, syncId);
+  await pushActualCoreBatches('categories', categoryRecords, syncId);
+  await pushActualCoreBatches('schedules', scheduleRecords, syncId);
+  await pushActualCoreBatches('transactions', transactionRecords, syncId);
 
   return {
     accepted: true,
