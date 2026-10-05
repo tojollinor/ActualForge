@@ -18,7 +18,7 @@ interface TableSyncDefinition {
 export interface AirtableTableSyncResult {
   table: string;
   records: number;
-  ignoredRecords: number;
+  staleRecords: number;
   status: 'success' | 'error';
   durationMs: number;
   error?: string;
@@ -500,12 +500,12 @@ async function appendSyncLog(
               Status: result.status === 'success' ? 'success' : 'error',
               Message:
                 result.status === 'success'
-                  ? `Synced ${result.records} record(s), ignored ${result.ignoredRecords} stale record(s)`
+                  ? `Synced ${result.records} record(s), ignored ${result.staleRecords} stale record(s)`
                   : result.error ?? 'Airtable sync failed',
               DurationMs: result.durationMs,
               Payload: JSON.stringify({
                 records: result.records,
-                ignoredRecords: result.ignoredRecords,
+                staleRecords: result.staleRecords,
                 status: result.status,
               }),
             },
@@ -549,7 +549,7 @@ export async function syncFinanceEngineToAirtable(
 
     try {
       await upsertTable(config, definition, rows, fetchImpl);
-      const ignoredRecords = await reconcileMissingRecords(
+      const staleRecords = await reconcileMissingRecords(
         config,
         definition,
         rows,
@@ -558,7 +558,7 @@ export async function syncFinanceEngineToAirtable(
       const result: AirtableTableSyncResult = {
         table: definition.airtableTable,
         records: rows.length,
-        ignoredRecords,
+        staleRecords,
         status: 'success',
         durationMs: Date.now() - started,
       };
@@ -568,7 +568,7 @@ export async function syncFinanceEngineToAirtable(
       const result: AirtableTableSyncResult = {
         table: definition.airtableTable,
         records: rows.length,
-        ignoredRecords: 0,
+        staleRecords: 0,
         status: 'error',
         durationMs: Date.now() - started,
         error: error instanceof Error ? error.message : String(error),
@@ -613,7 +613,7 @@ export function startAirtableSyncLoop(
             tables: result.tables.map(table => ({
               table: table.table,
               records: table.records,
-              ignoredRecords: table.ignoredRecords,
+              staleRecords: table.staleRecords,
               status: table.status,
             })),
           }),
