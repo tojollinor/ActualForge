@@ -23,6 +23,7 @@ import {
   normalizeTransaction,
 } from './services/enablebanking-service';
 import { EnableBankingError } from './utils/errors';
+import { normalizeEnableBankingPrivateKey } from './utils/jwt';
 
 const debug = createDebug('actual:enable-banking:app');
 
@@ -216,8 +217,10 @@ app.post(
   '/configure',
   handleError(async (req: Request, res: Response) => {
     const { applicationId, secretKey } = req.body || {};
+    const normalizedApplicationId =
+      typeof applicationId === 'string' ? applicationId.trim() : '';
 
-    if (!applicationId || !secretKey) {
+    if (!normalizedApplicationId || typeof secretKey !== 'string' || !secretKey.trim()) {
       res.send({
         status: 'ok',
         data: {
@@ -228,12 +231,29 @@ app.post(
       return;
     }
 
+    let normalizedSecretKey: string;
+    try {
+      normalizedSecretKey = normalizeEnableBankingPrivateKey(secretKey);
+    } catch (error) {
+      res.send({
+        status: 'ok',
+        data: {
+          error_code: 'INVALID_PRIVATE_KEY',
+          error_type:
+            error instanceof Error
+              ? error.message
+              : 'Invalid Enable Banking private key',
+        },
+      });
+      return;
+    }
+
     // Validate credentials before persisting to avoid exposing
-    // transient bad creds to concurrent requests
+    // transient bad creds to concurrent requests.
     try {
       const appInfo = await enableBankingService.validateCredentials(
-        applicationId,
-        secretKey,
+        normalizedApplicationId,
+        normalizedSecretKey,
       );
       debug('Enable Banking application validated: %o', appInfo);
     } catch (error) {
@@ -248,9 +268,15 @@ app.post(
       return;
     }
 
-    // Only persist after successful validation
-    secretsService.set(SecretName.enablebanking_applicationId, applicationId);
-    secretsService.set(SecretName.enablebanking_secretKey, secretKey);
+    // Only persist canonical credentials after successful validation.
+    secretsService.set(
+      SecretName.enablebanking_applicationId,
+      normalizedApplicationId,
+    );
+    secretsService.set(
+      SecretName.enablebanking_secretKey,
+      normalizedSecretKey,
+    );
 
     res.send({
       status: 'ok',
