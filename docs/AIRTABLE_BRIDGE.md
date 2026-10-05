@@ -50,6 +50,13 @@ not silently disappear from the bridge before the Airtable schema is expanded.
 
 Each table sync appends a row to `SyncLog`.
 
+The finance-engine bridge also reconciles deletions. Records that were previously
+exported but no longer exist in the finance-engine are marked
+`SyncState = ignored` where that field exists. `PredictionEntries` is a
+transient mirror table without `SyncState`, so stale prediction records are
+removed from Airtable instead. Manually added Airtable rows are not reconciled
+unless they carry ActualForge bridge metadata in `RawJSON`.
+
 ## Actual core data
 
 Accounts, categories, schedules and original transactions stay authoritative

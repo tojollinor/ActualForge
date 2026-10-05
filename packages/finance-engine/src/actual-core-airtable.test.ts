@@ -50,6 +50,7 @@ describe('Actual core Airtable queue', () => {
     const queue = createActualCoreAirtableQueue(config, fetchImpl);
 
     const accepted = queue.enqueue({
+      syncId: 'sync-1',
       dataset: 'transactions',
       records: [
         {
@@ -128,6 +129,7 @@ describe('Actual core Airtable queue', () => {
     );
 
     queue.enqueue({
+      syncId: 'sync-1',
       dataset: 'categories',
       records: [{ id: 'cat-deleted', deleted: true }],
     });
@@ -146,4 +148,104 @@ describe('Actual core Airtable queue', () => {
       SyncState: 'ignored',
     });
   });
+
+  it('does not retry permanent Airtable errors and resets status on the next sync run', async () => {
+    let failTransactions = true;
+    let transactionAttempts = 0;
+
+    const fetchImpl: typeof fetch = async (input, init) => {
+      const url = input.toString();
+
+      if (url.endsWith('/Transactions')) {
+        transactionAttempts += 1;
+        if (failTransactions) {
+          return new Response(JSON.stringify({ error: 'INVALID_VALUE' }), {
+            status: 422,
+            headers: { 'content-type': 'application/json' },
+          });
+        }
+      }
+
+      return new Response(JSON.stringify({ records: [] }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    };
+
+    const queue = createActualCoreAirtableQueue(
+      {
+        enabled: true,
+        token: 'pat_test',
+        baseId: 'appDhIt8N6IH2EM5J',
+        syncIntervalMinutes: 15,
+      },
+      fetchImpl,
+    );
+
+    queue.enqueue({
+      syncId: 'sync-failed',
+      dataset: 'transactions',
+      records: [{ id: 'tx-failed', date: 20261002 }],
+    });
+
+    const failed = await waitForDrain(queue.getStatus);
+    expect(transactionAttempts).toBe(1);
+    expect(failed.failedRecords).toBe(1);
+    expect(failed.lastError).toContain('422');
+
+    failTransactions = false;
+    queue.enqueue({
+      syncId: 'sync-retry',
+      dataset: 'transactions',
+      records: [{ id: 'tx-retry', date: 20261003 }],
+    });
+
+    const recovered = await waitForDrain(queue.getStatus);
+    expect(recovered.acceptedRecords).toBe(1);
+    expect(recovered.syncedRecords).toBe(1);
+    expect(recovered.failedRecords).toBe(0);
+    expect(recovered.lastError).toBeNull();
+  });
+
+  it('rejects a second sync run while the first one is still queued', async () => {
+    let releaseRequest!: () => void;
+    const gate = new Promise<void>(resolve => {
+      releaseRequest = resolve;
+    });
+
+    const fetchImpl: typeof fetch = async (input, init) => {
+      if (input.toString().endsWith('/Transactions')) {
+        await gate;
+      }
+      return new Response(JSON.stringify({ records: [] }), { status: 200 });
+    };
+
+    const queue = createActualCoreAirtableQueue(
+      {
+        enabled: true,
+        token: 'pat_test',
+        baseId: 'appDhIt8N6IH2EM5J',
+        syncIntervalMinutes: 15,
+      },
+      fetchImpl,
+    );
+
+    queue.enqueue({
+      syncId: 'sync-a',
+      dataset: 'transactions',
+      records: [{ id: 'tx-a' }],
+    });
+
+    expect(() =>
+      queue.enqueue({
+        syncId: 'sync-b',
+        dataset: 'transactions',
+        records: [{ id: 'tx-b' }],
+      }),
+    ).toThrow('Another Actual core sync is already in progress');
+
+    releaseRequest();
+    await waitForDrain(queue.getStatus);
+  });
+
 });

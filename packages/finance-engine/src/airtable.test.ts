@@ -114,4 +114,136 @@ describe('Airtable bridge', () => {
 
     db.close();
   });
+
+  it('marks Airtable records as ignored after their finance-engine row was deleted', async () => {
+    const dir = mkdtempSync(path.join(os.tmpdir(), 'actualforge-airtable-delete-'));
+    tempDirs.push(dir);
+    const db = openDatabase(path.join(dir, 'finance.sqlite'));
+
+    const requests: Array<{
+      url: string;
+      method: string;
+      body: unknown;
+    }> = [];
+
+    const fetchImpl: typeof fetch = async (input, init) => {
+      const url = input.toString();
+      const method = init?.method ?? 'GET';
+      const body =
+        typeof init?.body === 'string' ? JSON.parse(init.body) : init?.body;
+
+      requests.push({ url, method, body });
+
+      if (method === 'GET' && url.includes('/PredictionEntries?')) {
+        return new Response(
+          JSON.stringify({
+            records: [
+              {
+                id: 'rec-stale-prediction',
+                fields: {
+                  EngineId: 'prediction-deleted',
+                  RawJSON: '{"id":"prediction-deleted"}',
+                },
+              },
+            ],
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        );
+      }
+
+      if (method === 'GET') {
+        return new Response(JSON.stringify({ records: [] }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
+      }
+
+      return new Response(JSON.stringify({ records: [] }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    };
+
+    const result = await syncFinanceEngineToAirtable(
+      db,
+      {
+        enabled: true,
+        token: 'pat_test',
+        baseId: 'appDhIt8N6IH2EM5J',
+        syncIntervalMinutes: 15,
+      },
+      fetchImpl,
+    );
+
+    expect(result.ok).toBe(true);
+    expect(
+      result.tables.find(table => table.table === 'PredictionEntries')
+        ?.staleRecords,
+    ).toBe(1);
+
+    const staleDelete = requests.find(request => {
+      if (request.method !== 'DELETE') {
+        return false;
+      }
+      const url = new URL(request.url);
+      return (
+        url.pathname.endsWith('/PredictionEntries') &&
+        url.searchParams.getAll('records[]').includes('rec-stale-prediction')
+      );
+    });
+
+    expect(staleDelete).toBeDefined();
+    db.close();
+  });
+
+  it('does not retry permanent Airtable errors in the finance-engine sync', async () => {
+    const dir = mkdtempSync(path.join(os.tmpdir(), 'actualforge-airtable-4xx-'));
+    tempDirs.push(dir);
+    const db = openDatabase(path.join(dir, 'finance.sqlite'));
+    let contractListAttempts = 0;
+
+    const fetchImpl: typeof fetch = async (input, init) => {
+      const url = input.toString();
+      const method = init?.method ?? 'GET';
+
+      if (method === 'GET' && url.includes('/Contracts?')) {
+        contractListAttempts += 1;
+        return new Response(JSON.stringify({ error: 'UNKNOWN_FIELD_NAME' }), {
+          status: 422,
+          headers: { 'content-type': 'application/json' },
+        });
+      }
+
+      if (method === 'GET') {
+        return new Response(JSON.stringify({ records: [] }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
+      }
+
+      return new Response(JSON.stringify({ records: [] }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    };
+
+    const result = await syncFinanceEngineToAirtable(
+      db,
+      {
+        enabled: true,
+        token: 'pat_test',
+        baseId: 'appDhIt8N6IH2EM5J',
+        syncIntervalMinutes: 15,
+      },
+      fetchImpl,
+    );
+
+    expect(contractListAttempts).toBe(1);
+    expect(
+      result.tables.find(table => table.table === 'Contracts')?.status,
+    ).toBe('error');
+
+    db.close();
+  });
+
 });

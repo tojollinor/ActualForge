@@ -15,6 +15,7 @@ export type ActualCoreDataset =
 export interface ActualCoreBatchInput {
   dataset: ActualCoreDataset;
   records: CoreRecord[];
+  syncId?: string;
 }
 
 export interface ActualCoreAirtableStatus {
@@ -190,6 +191,22 @@ function delay(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+function retryAfterMs(value: string | null): number | null {
+  if (!value) return null;
+
+  const seconds = Number(value);
+  if (Number.isFinite(seconds) && seconds > 0) {
+    return seconds * 1000;
+  }
+
+  const timestamp = Date.parse(value);
+  if (Number.isFinite(timestamp)) {
+    return Math.max(0, timestamp - Date.now());
+  }
+
+  return null;
+}
+
 async function airtableRequest(
   config: AirtableBridgeConfig,
   table: string,
@@ -213,8 +230,9 @@ async function airtableRequest(
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 20_000);
 
+    let response: Response;
     try {
-      const response = await fetchImpl(url, {
+      response = await fetchImpl(url, {
         method,
         headers: {
           authorization: `Bearer ${config.token}`,
@@ -223,7 +241,17 @@ async function airtableRequest(
         body: JSON.stringify(payload),
         signal: controller.signal,
       });
+    } catch (error) {
+      clearTimeout(timeout);
+      lastError = error instanceof Error ? error.message : String(error);
+      if (attempt === 4) {
+        throw new Error(lastError);
+      }
+      await delay(750 * 2 ** attempt);
+      continue;
+    }
 
+    try {
       const responseText = await response.text();
       if (response.ok) {
         return;
@@ -235,18 +263,9 @@ async function airtableRequest(
         throw new Error(lastError);
       }
 
-      const retryAfter = Number(response.headers.get('retry-after'));
       await delay(
-        Number.isFinite(retryAfter) && retryAfter > 0
-          ? retryAfter * 1000
-          : 750 * 2 ** attempt,
+        retryAfterMs(response.headers.get('retry-after')) ?? 750 * 2 ** attempt,
       );
-    } catch (error) {
-      lastError = error instanceof Error ? error.message : String(error);
-      if (attempt === 4) {
-        throw new Error(lastError);
-      }
-      await delay(750 * 2 ** attempt);
     } finally {
       clearTimeout(timeout);
     }
@@ -373,6 +392,7 @@ export function createActualCoreAirtableQueue(
   fetchImpl: typeof fetch = fetch,
 ): ActualCoreAirtableQueue {
   let queue = Promise.resolve();
+  let activeSyncId: string | null = null;
   let pendingBatches = 0;
   let processing = false;
   let acceptedRecords = 0;
@@ -414,6 +434,25 @@ export function createActualCoreAirtableQueue(
       )
     ) {
       throw new Error('Every Actual core record requires an id');
+    }
+
+    const syncId =
+      typeof input.syncId === 'string' && input.syncId.length > 0
+        ? input.syncId
+        : null;
+
+    if (syncId && syncId !== activeSyncId) {
+      if (pendingBatches > 0 || processing) {
+        throw new Error('Another Actual core sync is already in progress');
+      }
+
+      activeSyncId = syncId;
+      acceptedRecords = 0;
+      syncedRecords = 0;
+      failedRecords = 0;
+      lastSuccessAt = null;
+      lastErrorAt = null;
+      lastError = null;
     }
 
     pendingBatches += 1;
