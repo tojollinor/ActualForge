@@ -15,6 +15,13 @@ for attempt in $(seq 1 60); do
   sleep 2
 done
 
+finance_engine_container="$(docker compose -f "$COMPOSE_FILE" ps -q finance-engine)"
+finance_engine_bindings="$(docker inspect --format '{{json .HostConfig.PortBindings}}' "$finance_engine_container")"
+if [ "$finance_engine_bindings" != "{}" ] && [ "$finance_engine_bindings" != "null" ]; then
+  echo "finance-engine must not publish host ports, but has bindings: $finance_engine_bindings" >&2
+  exit 1
+fi
+
 docker compose -f "$COMPOSE_FILE" exec -T finance-engine node --input-type=module <<'NODE'
 const base = 'http://127.0.0.1:5010';
 async function json(path, init) {

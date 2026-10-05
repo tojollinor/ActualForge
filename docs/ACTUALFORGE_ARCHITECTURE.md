@@ -78,16 +78,20 @@ The `finance-engine` service owns ActualForge-specific interpretation, matching,
 
 Its persistent data is stored in a separate SQLite database and separate Docker volume. The service has no direct mount of Actual's data volume.
 
-Initial internal endpoints:
+The finance engine exposes health/status endpoints plus domain-specific read/write
+endpoints for contracts, payment chains, transfers, credit-card interpretation,
+predictions, forecasts, clarification cases and the optional Airtable bridge.
+Those endpoints are internal service APIs, not a second user-facing interface.
 
-- `GET /health`
-- `GET /ready`
-- `GET /api/v1/status`
-- `GET /api/v1/capabilities`
+The sync-server exposes only explicit ActualForge routes through a fixed,
+authenticated same-origin bridge. It is not an open proxy. The React/PWA shell
+contains the `/actualforge` routes for desktop and mobile, and the browser never
+needs direct network access to the engine container.
 
-The finance engine still exposes no write endpoints.
-
-Block 3 adds a fixed same-origin bridge in the sync-server and a new `/actualforge` route inside the existing React/PWA shell. Desktop and mobile navigation point to this page. The browser never needs direct network access to the engine container.
+The default development and release Compose files publish only the
+ActualForge/sync-server port. The finance-engine uses Docker `expose` for port
+`5010` on the internal service network and must not gain a host `ports`
+mapping. CI smoke tests enforce this boundary.
 
 ## Compatibility rule
 

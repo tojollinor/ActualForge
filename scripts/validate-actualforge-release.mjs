@@ -10,6 +10,22 @@ const release = readJson('ACTUALFORGE_RELEASE.json');
 const base = readJson('ACTUALFORGE_BASE.json');
 const financePackage = readJson('packages/finance-engine/package.json');
 const releaseCompose = fs.readFileSync('compose.release.yaml', 'utf8');
+
+function serviceBlock(composeText, serviceName) {
+  const lines = composeText.split('\n');
+  const start = lines.findIndex(line => line === `  ${serviceName}:`);
+  if (start === -1) return '';
+
+  const block = [];
+  for (let index = start + 1; index < lines.length; index += 1) {
+    const line = lines[index];
+    if (/^  [A-Za-z0-9_-]+:\s*$/.test(line) || /^[A-Za-z0-9_-]+:\s*$/.test(line)) {
+      break;
+    }
+    block.push(line);
+  }
+  return block.join('\n');
+}
 const migrations = fs.readFileSync('packages/finance-engine/src/migrations.ts', 'utf8');
 const plan = fs.readFileSync('docs/IMPLEMENTATION_PLAN.md', 'utf8');
 
@@ -35,6 +51,11 @@ for (const [name, image] of Object.entries(release.images ?? {})) {
 }
 
 if (releaseCompose.includes('\n    build:')) fail('release Compose must not contain build directives');
+const releaseFinanceEngine = serviceBlock(releaseCompose, 'finance-engine');
+if (!releaseFinanceEngine) fail('finance-engine service is missing from release Compose');
+if (/^    ports:\s*$/m.test(releaseFinanceEngine)) {
+  fail('finance-engine port must not be published to the host');
+}
 if (!releaseCompose.includes('ACTUALFORGE_TAG:-' + release.version)) fail('ActualForge release tag mismatch');
 if (!releaseCompose.includes('FINANCE_ENGINE_TAG:-' + release.version)) fail('finance-engine release tag mismatch');
 if (!fs.existsSync(release.releaseNotes)) fail('release notes file is missing');

@@ -138,12 +138,12 @@ export function ActualForgePage() {
         >
           <View style={{ gap: 6 }}>
           <Text style={{ fontSize: 17, fontWeight: 600 }}>
-            {t('Finance interpretation layer')}
+            ActualForge-Finanzlogik
           </Text>
           <Text style={{ opacity: 0.75 }}>
-            {t(
-              'Actual keeps the original transactions. ActualForge adds reversible interpretation, matching and forecasting on top.',
-            )}
+            Actual bleibt die führende Quelle für Buchungen. ActualForge ergänzt
+            Verträge, Zuordnungen, Klärfälle und Prognosen in derselben
+            Oberfläche.
           </Text>
           </View>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
@@ -292,12 +292,11 @@ export function ActualForgePage() {
                 >
                   <View style={{ gap: 3 }}>
                     <Text style={{ fontSize: 16, fontWeight: 600 }}>
-                      {t('Prepared modules')}
+                      Aktive Module
                     </Text>
                     <Text style={{ opacity: 0.7 }}>
-                      {t(
-                        'These modules have their persistence boundary in place. Their workflows are added in the following blocks.',
-                      )}
+                      Diese Funktionen laufen über die interne Finance Engine,
+                      bleiben aber vollständig in der ActualForge-Oberfläche.
                     </Text>
                   </View>
                   <Button variant="normal" onPress={() => void refresh()}>
