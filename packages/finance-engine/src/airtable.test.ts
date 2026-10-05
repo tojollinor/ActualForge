@@ -142,7 +142,7 @@ describe('Airtable bridge', () => {
                 id: 'rec-stale-prediction',
                 fields: {
                   EngineId: 'prediction-deleted',
-                  SyncState: 'synced',
+                  RawJSON: '{"id":"prediction-deleted"}',
                 },
               },
             ],
@@ -181,21 +181,18 @@ describe('Airtable bridge', () => {
         ?.ignoredRecords,
     ).toBe(1);
 
-    const ignoredPatch = requests.find(request => {
-      if (request.method !== 'PATCH' || !request.url.endsWith('/PredictionEntries')) {
+    const staleDelete = requests.find(request => {
+      if (request.method !== 'DELETE') {
         return false;
       }
-      const payload = request.body as {
-        records?: Array<{ id?: string; fields?: Record<string, unknown> }>;
-      };
-      return payload.records?.some(
-        record =>
-          record.id === 'rec-stale-prediction' &&
-          record.fields?.SyncState === 'ignored',
+      const url = new URL(request.url);
+      return (
+        url.pathname.endsWith('/PredictionEntries') &&
+        url.searchParams.getAll('records[]').includes('rec-stale-prediction')
       );
     });
 
-    expect(ignoredPatch).toBeDefined();
+    expect(staleDelete).toBeDefined();
     db.close();
   });
 });
