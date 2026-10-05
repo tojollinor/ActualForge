@@ -11,6 +11,7 @@ interface TableSyncDefinition {
   airtableTable: string;
   sqliteTable: string;
   mergeField: string;
+  staleStrategy?: 'ignore' | 'delete';
   toFields: (row: SqlRow) => AirtableFields;
 }
 
@@ -166,6 +167,7 @@ const TABLES: TableSyncDefinition[] = [
     airtableTable: 'PredictionEntries',
     sqliteTable: 'prediction_entries',
     mergeField: 'EngineId',
+    staleStrategy: 'delete',
     toFields: row => ({
       EngineId: text(row, 'id'),
       Date: text(row, 'expected_date'),
@@ -275,7 +277,7 @@ function retryAfterMs(value: string | null): number | null {
 async function airtableRequest(
   config: AirtableBridgeConfig,
   table: string,
-  method: 'GET' | 'POST' | 'PATCH',
+  method: 'GET' | 'POST' | 'PATCH' | 'DELETE',
   payload: unknown | undefined,
   fetchImpl: typeof fetch,
   query?: URLSearchParams,
@@ -371,26 +373,33 @@ async function upsertTable(
   }
 }
 
-async function markMissingRecordsIgnored(
+async function reconcileMissingRecords(
   config: AirtableBridgeConfig,
   definition: TableSyncDefinition,
   rows: SqlRow[],
   fetchImpl: typeof fetch,
 ): Promise<number> {
+  const staleStrategy = definition.staleStrategy ?? 'ignore';
   const localIds = new Set(
     rows
       .map(row => definition.toFields(row)[definition.mergeField])
-      .filter((value): value is string => typeof value === 'string' && value.length > 0),
+      .filter(
+        (value): value is string =>
+          typeof value === 'string' && value.length > 0,
+      ),
   );
 
-  const staleRecords: Array<{ id: string; fields: { SyncState: 'ignored' } }> = [];
+  const staleRecordIds: string[] = [];
   let offset: string | null = null;
 
   do {
     const query = new URLSearchParams();
     query.set('pageSize', '100');
     query.append('fields[]', definition.mergeField);
-    query.append('fields[]', 'SyncState');
+    query.append('fields[]', 'RawJSON');
+    if (staleStrategy === 'ignore') {
+      query.append('fields[]', 'SyncState');
+    }
     if (offset) {
       query.set('offset', offset);
     }
@@ -412,38 +421,60 @@ async function markMissingRecordsIgnored(
 
     for (const record of response?.records ?? []) {
       const remoteId = record.fields?.[definition.mergeField];
+      const raw = record.fields?.RawJSON;
       const syncState = record.fields?.SyncState;
+      const bridgeManaged = typeof raw === 'string' && raw.length > 0;
+
       if (
         typeof record.id === 'string' &&
         typeof remoteId === 'string' &&
         remoteId.length > 0 &&
-        syncState === 'synced' &&
-        !localIds.has(remoteId)
+        bridgeManaged &&
+        !localIds.has(remoteId) &&
+        (staleStrategy === 'delete' || syncState === 'synced')
       ) {
-        staleRecords.push({
-          id: record.id,
-          fields: { SyncState: 'ignored' },
-        });
+        staleRecordIds.push(record.id);
       }
     }
 
     offset = typeof response?.offset === 'string' ? response.offset : null;
   } while (offset);
 
-  for (const batch of chunk(staleRecords, 10)) {
-    await airtableRequest(
-      config,
-      definition.airtableTable,
-      'PATCH',
-      {
-        typecast: true,
-        records: batch,
-      },
-      fetchImpl,
-    );
+  if (staleStrategy === 'delete') {
+    for (const batch of chunk(staleRecordIds, 10)) {
+      const query = new URLSearchParams();
+      for (const recordId of batch) {
+        query.append('records[]', recordId);
+      }
+
+      await airtableRequest(
+        config,
+        definition.airtableTable,
+        'DELETE',
+        undefined,
+        fetchImpl,
+        query,
+      );
+    }
+  } else {
+    for (const batch of chunk(staleRecordIds, 10)) {
+      await airtableRequest(
+        config,
+        definition.airtableTable,
+        'PATCH',
+        {
+          typecast: true,
+          records: batch.map(id => ({
+            id,
+            fields: { SyncState: 'ignored' },
+          })),
+        },
+        fetchImpl,
+      );
+    }
   }
 
-  return staleRecords.length;
+  return staleRecordIds.length;
 }
 
 async function appendSyncLog(
@@ -518,7 +549,7 @@ export async function syncFinanceEngineToAirtable(
 
     try {
       await upsertTable(config, definition, rows, fetchImpl);
-      const ignoredRecords = await markMissingRecordsIgnored(
+      const ignoredRecords = await reconcileMissingRecords(
         config,
         definition,
         rows,
